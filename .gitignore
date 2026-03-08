@@ -6,3 +6,4 @@ dist/
 build/
 docs/
 .claude/
+CLAUDE.md
