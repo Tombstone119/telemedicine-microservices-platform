@@ -1,0 +1,113 @@
+version: '3.8'
+
+services:
+  gateway:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./gateway/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - auth-service
+      - patient-service
+      - doctor-service
+      - appointment-service
+      - telemedicine-service
+      - payment-service
+      - notification-service
+
+  auth-service:
+    build: ./services/auth-service
+    env_file: ./services/auth-service/.env
+    ports:
+      - "3000:3000"
+    depends_on:
+      - postgres
+      - redis
+
+  patient-service:
+    build: ./services/patient-service
+    env_file: ./services/patient-service/.env
+    ports:
+      - "3001:3001"
+    depends_on:
+      - postgres
+      - mongo
+
+  doctor-service:
+    build: ./services/doctor-service
+    env_file: ./services/doctor-service/.env
+    ports:
+      - "3002:3002"
+    depends_on:
+      - postgres
+
+  appointment-service:
+    build: ./services/appointment-service
+    env_file: ./services/appointment-service/.env
+    ports:
+      - "3003:3003"
+    depends_on:
+      - postgres
+      - rabbitmq
+
+  telemedicine-service:
+    build: ./services/telemedicine-service
+    env_file: ./services/telemedicine-service/.env
+    ports:
+      - "3004:3004"
+
+  payment-service:
+    build: ./services/payment-service
+    env_file: ./services/payment-service/.env
+    ports:
+      - "3005:3005"
+    depends_on:
+      - postgres
+      - rabbitmq
+
+  notification-service:
+    build: ./services/notification-service
+    env_file: ./services/notification-service/.env
+    ports:
+      - "3006:3006"
+    depends_on:
+      - rabbitmq
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "5173:5173"
+
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: admin
+      POSTGRES_PASSWORD: secret
+      POSTGRES_DB: healthcare
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  mongo:
+    image: mongo:7
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "5672:5672"
+      - "15672:15672"    # management UI at http://localhost:15672
+
+volumes:
+  postgres_data:
+  mongo_data:
