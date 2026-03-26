@@ -1,4 +1,5 @@
 const pool = require('./db');
+const eventPublisher = require('./eventPublisher');
 
 // Doctor Profile Management
 const doctorModel = {
@@ -27,7 +28,16 @@ const doctorModel = {
     ];
 
     const result = await pool.query(query, values);
-    return result.rows[0];
+    const doctor = result.rows[0];
+
+    // Publish event
+    try {
+      await eventPublisher.publishDoctorRegistered(doctor);
+    } catch (error) {
+      console.error('Failed to publish doctor registered event:', error);
+    }
+
+    return doctor;
   },
 
   // Get doctor profile by ID
@@ -96,7 +106,16 @@ const doctorModel = {
     `;
 
     const result = await pool.query(query, values);
-    return result.rows[0];
+    const updatedDoctor = result.rows[0];
+
+    // Publish event
+    try {
+      await eventPublisher.publishDoctorProfileUpdated(updatedDoctor);
+    } catch (error) {
+      console.error('Failed to publish doctor profile updated event:', error);
+    }
+
+    return updatedDoctor;
   },
 
   // List all doctors with optional filters
@@ -273,8 +292,267 @@ const leaveModel = {
   }
 };
 
+// Appointment Management
+const appointmentModel = {
+  // Create a new appointment
+  async createAppointment(appointmentData) {
+    const {
+      doctor_id, patient_id, appointment_date, appointment_time,
+      duration_minutes, symptoms, notes, consultation_fee
+    } = appointmentData;
+
+    const query = `
+      INSERT INTO appointments (
+        doctor_id, patient_id, appointment_date, appointment_time,
+        duration_minutes, symptoms, notes, consultation_fee
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *;
+    `;
+
+    const values = [
+      doctor_id, patient_id, appointment_date, appointment_time,
+      duration_minutes || 30, symptoms, notes, consultation_fee
+    ];
+
+    const result = await pool.query(query, values);
+    return result.rows[0];
+  },
+
+  // Get appointment by ID
+  async getAppointmentById(appointmentId) {
+    const query = `
+      SELECT a.*, d.first_name as doctor_first_name, d.last_name as doctor_last_name,
+             d.specialty, d.consultation_fee as default_fee
+      FROM appointments a
+      JOIN doctors d ON a.doctor_id = d.id
+      WHERE a.id = $1;
+    `;
+    const result = await pool.query(query, [appointmentId]);
+    return result.rows[0];
+  },
+
+  // Get doctor's appointments
+  async getDoctorAppointments(doctorId, filters = {}) {
+    let query = `
+      SELECT a.*, d.first_name, d.last_name, d.specialty
+      FROM appointments a
+      JOIN doctors d ON a.doctor_id = d.id
+      WHERE a.doctor_id = $1
+    `;
+    const values = [doctorId];
+    let paramCounter = 2;
+
+    if (filters.status) {
+      query += ` AND a.status = $${paramCounter}`;
+      values.push(filters.status);
+      paramCounter++;
+    }
+
+    if (filters.date_from) {
+      query += ` AND a.appointment_date >= $${paramCounter}`;
+      values.push(filters.date_from);
+      paramCounter++;
+    }
+
+    if (filters.date_to) {
+      query += ` AND a.appointment_date <= $${paramCounter}`;
+      values.push(filters.date_to);
+      paramCounter++;
+    }
+
+    query += ' ORDER BY a.appointment_date DESC, a.appointment_time DESC';
+
+    if (filters.limit) {
+      query += ` LIMIT $${paramCounter}`;
+      values.push(filters.limit);
+      paramCounter++;
+    }
+
+    const result = await pool.query(query, values);
+    return result.rows;
+  },
+
+  // Update appointment status
+  async updateAppointmentStatus(appointmentId, status, notes = null) {
+    const query = `
+      UPDATE appointments
+      SET status = $1, notes = COALESCE($2, notes), updated_at = NOW()
+      WHERE id = $3
+      RETURNING *;
+    `;
+    const result = await pool.query(query, [status, notes, appointmentId]);
+    const appointment = result.rows[0];
+
+    // Publish event based on status
+    try {
+      switch (status) {
+        case 'accepted':
+          await eventPublisher.publishAppointmentAccepted(appointment);
+          break;
+        case 'rejected':
+          await eventPublisher.publishAppointmentRejected(appointment);
+          break;
+        case 'completed':
+          await eventPublisher.publishAppointmentCompleted(appointment);
+          break;
+      }
+    } catch (error) {
+      console.error(`Failed to publish appointment ${status} event:`, error);
+    }
+
+    return appointment;
+  },
+
+  // Accept appointment
+  async acceptAppointment(appointmentId, notes = null) {
+    return await this.updateAppointmentStatus(appointmentId, 'accepted', notes);
+  },
+
+  // Reject appointment
+  async rejectAppointment(appointmentId, notes = null) {
+    return await this.updateAppointmentStatus(appointmentId, 'rejected', notes);
+  },
+
+  // Complete appointment
+  async completeAppointment(appointmentId, notes = null) {
+    return await this.updateAppointmentStatus(appointmentId, 'completed', notes);
+  },
+
+  // Cancel appointment
+  async cancelAppointment(appointmentId, notes = null) {
+    return await this.updateAppointmentStatus(appointmentId, 'cancelled', notes);
+  }
+};
+
+// Prescription Management
+const prescriptionModel = {
+  // Create a new prescription
+  async createPrescription(prescriptionData) {
+    const {
+      appointment_id, doctor_id, patient_id, medicines,
+      dosage_instructions, notes, valid_until
+    } = prescriptionData;
+
+    const query = `
+      INSERT INTO prescriptions (
+        appointment_id, doctor_id, patient_id, medicines,
+        dosage_instructions, notes, valid_until
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *;
+    `;
+
+    const values = [
+      appointment_id, doctor_id, patient_id, JSON.stringify(medicines),
+      dosage_instructions, notes, valid_until
+    ];
+
+    const result = await pool.query(query, values);
+    const prescription = result.rows[0];
+
+    // Insert individual medicines if provided as array
+    if (Array.isArray(medicines)) {
+      for (const medicine of medicines) {
+        await pool.query(`
+          INSERT INTO prescription_medicines (
+            prescription_id, medicine_name, dosage, frequency, duration_days, instructions
+          ) VALUES ($1, $2, $3, $4, $5, $6)
+        `, [
+          prescription.id,
+          medicine.name || medicine.medicine_name,
+          medicine.dosage,
+          medicine.frequency,
+          medicine.duration_days,
+          medicine.instructions
+        ]);
+      }
+    }
+
+    // Publish event
+    try {
+      await eventPublisher.publishPrescriptionIssued(prescription);
+    } catch (error) {
+      console.error('Failed to publish prescription issued event:', error);
+    }
+
+    return prescription;
+  },
+
+  // Get prescription by ID
+  async getPrescriptionById(prescriptionId) {
+    const query = `
+      SELECT p.*, d.first_name as doctor_first_name, d.last_name as doctor_last_name,
+             d.specialty, d.license_number,
+             pm.medicine_name, pm.dosage, pm.frequency, pm.duration_days, pm.instructions
+      FROM prescriptions p
+      JOIN doctors d ON p.doctor_id = d.id
+      LEFT JOIN prescription_medicines pm ON p.id = pm.prescription_id
+      WHERE p.id = $1;
+    `;
+    const result = await pool.query(query, [prescriptionId]);
+
+    if (result.rows.length === 0) return null;
+
+    const prescription = {
+      id: result.rows[0].id,
+      appointment_id: result.rows[0].appointment_id,
+      doctor_id: result.rows[0].doctor_id,
+      patient_id: result.rows[0].patient_id,
+      medicines: result.rows[0].medicines,
+      dosage_instructions: result.rows[0].dosage_instructions,
+      notes: result.rows[0].notes,
+      issued_date: result.rows[0].issued_date,
+      valid_until: result.rows[0].valid_until,
+      doctor: {
+        first_name: result.rows[0].doctor_first_name,
+        last_name: result.rows[0].doctor_last_name,
+        specialty: result.rows[0].specialty,
+        license_number: result.rows[0].license_number
+      },
+      medicine_details: result.rows.map(row => ({
+        medicine_name: row.medicine_name,
+        dosage: row.dosage,
+        frequency: row.frequency,
+        duration_days: row.duration_days,
+        instructions: row.instructions
+      })).filter(item => item.medicine_name)
+    };
+
+    return prescription;
+  },
+
+  // Get prescriptions by doctor
+  async getPrescriptionsByDoctor(doctorId, limit = 50) {
+    const query = `
+      SELECT p.*, d.first_name, d.last_name, d.specialty
+      FROM prescriptions p
+      JOIN doctors d ON p.doctor_id = d.id
+      WHERE p.doctor_id = $1
+      ORDER BY p.issued_date DESC
+      LIMIT $2;
+    `;
+    const result = await pool.query(query, [doctorId, limit]);
+    return result.rows;
+  },
+
+  // Get prescriptions by patient
+  async getPrescriptionsByPatient(patientId, limit = 50) {
+    const query = `
+      SELECT p.*, d.first_name, d.last_name, d.specialty
+      FROM prescriptions p
+      JOIN doctors d ON p.doctor_id = d.id
+      WHERE p.patient_id = $1
+      ORDER BY p.issued_date DESC
+      LIMIT $2;
+    `;
+    const result = await pool.query(query, [patientId, limit]);
+    return result.rows;
+  }
+};
+
 module.exports = {
   doctorModel,
   availabilityModel,
-  leaveModel
+  leaveModel,
+  appointmentModel,
+  prescriptionModel
 };

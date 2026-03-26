@@ -58,6 +58,48 @@ const validationSchemas = {
     search: Joi.string().max(255),
     limit: Joi.number().integer().min(1).max(100).default(20),
     offset: Joi.number().integer().min(0).default(0)
+  }),
+
+  // Appointment creation
+  createAppointmentSchema: Joi.object({
+    patient_id: Joi.number().integer().positive().required(),
+    appointment_date: Joi.date().iso().required(),
+    appointment_time: Joi.string().pattern(/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/).required(),
+    duration_minutes: Joi.number().integer().min(15).max(120).default(30),
+    symptoms: Joi.string().allow(''),
+    notes: Joi.string().allow(''),
+    consultation_fee: Joi.number().positive()
+  }).required(),
+
+  // Appointment status update
+  updateAppointmentStatusSchema: Joi.object({
+    status: Joi.string().valid('accepted', 'rejected', 'completed', 'cancelled').required(),
+    notes: Joi.string().allow('')
+  }).required(),
+
+  // Prescription creation
+  createPrescriptionSchema: Joi.object({
+    appointment_id: Joi.number().integer().positive().required(),
+    patient_id: Joi.number().integer().positive().required(),
+    medicines: Joi.array().items(Joi.object({
+      name: Joi.string().required(),
+      medicine_name: Joi.string(), // alternative field name
+      dosage: Joi.string().required(),
+      frequency: Joi.string(),
+      duration_days: Joi.number().integer().positive(),
+      instructions: Joi.string()
+    })).min(1).required(),
+    dosage_instructions: Joi.string().allow(''),
+    notes: Joi.string().allow(''),
+    valid_until: Joi.date().iso()
+  }).required(),
+
+  // Appointment filters
+  appointmentFiltersSchema: Joi.object({
+    status: Joi.string().valid('pending', 'accepted', 'rejected', 'completed', 'cancelled'),
+    date_from: Joi.date().iso(),
+    date_to: Joi.date().iso(),
+    limit: Joi.number().integer().min(1).max(100).default(50)
   })
 };
 

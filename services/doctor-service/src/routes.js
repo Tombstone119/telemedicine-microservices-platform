@@ -1,7 +1,7 @@
 const express = require('express');
 const Joi = require('joi');
 const { verifyToken, requireRole } = require('../../../shared/middleware/auth');
-const { doctorModel, availabilityModel, leaveModel } = require('./models');
+const { doctorModel, availabilityModel, leaveModel, appointmentModel, prescriptionModel } = require('./models');
 const { validationSchemas, validate } = require('./validation');
 
 const router = express.Router();
@@ -405,6 +405,282 @@ router.delete('/doctors/:doctorId/leaves/:leaveDate', verifyToken, async (req, r
   } catch (error) {
     console.error('Error deleting leave:', error);
     res.status(500).json({ error: 'Failed to delete leave' });
+  }
+});
+
+// ============ APPOINTMENT ROUTES ============
+
+// Get doctor's appointments
+router.get('/doctors/:doctorId/appointments', verifyToken, async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const { status, date_from, date_to, limit } = req.query;
+
+    const doctor = await doctorModel.getDoctorById(parseInt(doctorId));
+    if (!doctor) {
+      return res.status(404).json({ error: 'Doctor not found' });
+    }
+
+    // Check authorization
+    if (req.user.role !== 'admin' && doctor.user_id !== (req.user.sub || req.user.id)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const result = validate(
+      { status, date_from, date_to, limit: limit ? parseInt(limit) : 50 },
+      validationSchemas.appointmentFiltersSchema
+    );
+
+    if (!result.valid) {
+      return res.status(400).json({ errors: result.messages });
+    }
+
+    const appointments = await appointmentModel.getDoctorAppointments(
+      parseInt(doctorId),
+      result.value
+    );
+
+    res.json({
+      success: true,
+      data: appointments
+    });
+  } catch (error) {
+    console.error('Error fetching appointments:', error);
+    res.status(500).json({ error: 'Failed to fetch appointments' });
+  }
+});
+
+// Get specific appointment
+router.get('/appointments/:appointmentId', verifyToken, async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const appointment = await appointmentModel.getAppointmentById(parseInt(appointmentId));
+
+    if (!appointment) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    // Check authorization
+    if (req.user.role !== 'admin' && appointment.doctor_id !== parseInt(req.params.doctorId)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    res.json({
+      success: true,
+      data: appointment
+    });
+  } catch (error) {
+    console.error('Error fetching appointment:', error);
+    res.status(500).json({ error: 'Failed to fetch appointment' });
+  }
+});
+
+// Accept appointment
+router.put('/appointments/:appointmentId/accept', verifyToken, async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { notes } = req.body;
+
+    const appointment = await appointmentModel.getAppointmentById(parseInt(appointmentId));
+    if (!appointment) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    // Check authorization
+    const doctor = await doctorModel.getDoctorById(appointment.doctor_id);
+    if (req.user.role !== 'admin' && doctor.user_id !== (req.user.sub || req.user.id)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    if (appointment.status !== 'pending') {
+      return res.status(400).json({ error: 'Appointment is not in pending status' });
+    }
+
+    const updatedAppointment = await appointmentModel.acceptAppointment(parseInt(appointmentId), notes);
+
+    res.json({
+      success: true,
+      message: 'Appointment accepted successfully',
+      data: updatedAppointment
+    });
+  } catch (error) {
+    console.error('Error accepting appointment:', error);
+    res.status(500).json({ error: 'Failed to accept appointment' });
+  }
+});
+
+// Reject appointment
+router.put('/appointments/:appointmentId/reject', verifyToken, async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { notes } = req.body;
+
+    const appointment = await appointmentModel.getAppointmentById(parseInt(appointmentId));
+    if (!appointment) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    // Check authorization
+    const doctor = await doctorModel.getDoctorById(appointment.doctor_id);
+    if (req.user.role !== 'admin' && doctor.user_id !== (req.user.sub || req.user.id)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    if (appointment.status !== 'pending') {
+      return res.status(400).json({ error: 'Appointment is not in pending status' });
+    }
+
+    const updatedAppointment = await appointmentModel.rejectAppointment(parseInt(appointmentId), notes);
+
+    res.json({
+      success: true,
+      message: 'Appointment rejected successfully',
+      data: updatedAppointment
+    });
+  } catch (error) {
+    console.error('Error rejecting appointment:', error);
+    res.status(500).json({ error: 'Failed to reject appointment' });
+  }
+});
+
+// Complete appointment
+router.put('/appointments/:appointmentId/complete', verifyToken, async (req, res) => {
+  try {
+    const { appointmentId } = req.params;
+    const { notes } = req.body;
+
+    const appointment = await appointmentModel.getAppointmentById(parseInt(appointmentId));
+    if (!appointment) {
+      return res.status(404).json({ error: 'Appointment not found' });
+    }
+
+    // Check authorization
+    const doctor = await doctorModel.getDoctorById(appointment.doctor_id);
+    if (req.user.role !== 'admin' && doctor.user_id !== (req.user.sub || req.user.id)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    if (appointment.status !== 'accepted') {
+      return res.status(400).json({ error: 'Appointment must be accepted before completion' });
+    }
+
+    const updatedAppointment = await appointmentModel.completeAppointment(parseInt(appointmentId), notes);
+
+    res.json({
+      success: true,
+      message: 'Appointment completed successfully',
+      data: updatedAppointment
+    });
+  } catch (error) {
+    console.error('Error completing appointment:', error);
+    res.status(500).json({ error: 'Failed to complete appointment' });
+  }
+});
+
+// ============ PRESCRIPTION ROUTES ============
+
+// Create prescription
+router.post('/prescriptions', verifyToken, async (req, res) => {
+  try {
+    const result = validate(req.body, validationSchemas.createPrescriptionSchema);
+
+    if (!result.valid) {
+      return res.status(400).json({ errors: result.messages });
+    }
+
+    // Verify doctor authorization
+    const doctor = await doctorModel.getDoctorById(result.value.doctor_id || req.body.doctor_id);
+    if (!doctor) {
+      return res.status(404).json({ error: 'Doctor not found' });
+    }
+
+    if (req.user.role !== 'admin' && doctor.user_id !== (req.user.sub || req.user.id)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    // If appointment_id is provided, verify it belongs to the doctor
+    if (result.value.appointment_id) {
+      const appointment = await appointmentModel.getAppointmentById(result.value.appointment_id);
+      if (!appointment || appointment.doctor_id !== doctor.id) {
+        return res.status(400).json({ error: 'Invalid appointment for this doctor' });
+      }
+    }
+
+    const prescriptionData = {
+      ...result.value,
+      doctor_id: doctor.id
+    };
+
+    const prescription = await prescriptionModel.createPrescription(prescriptionData);
+
+    res.status(201).json({
+      success: true,
+      message: 'Prescription created successfully',
+      data: prescription
+    });
+  } catch (error) {
+    console.error('Error creating prescription:', error);
+    res.status(500).json({ error: 'Failed to create prescription' });
+  }
+});
+
+// Get prescription by ID
+router.get('/prescriptions/:prescriptionId', verifyToken, async (req, res) => {
+  try {
+    const { prescriptionId } = req.params;
+    const prescription = await prescriptionModel.getPrescriptionById(parseInt(prescriptionId));
+
+    if (!prescription) {
+      return res.status(404).json({ error: 'Prescription not found' });
+    }
+
+    // Check authorization (doctor can view their own prescriptions, patients can view their own)
+    const doctor = await doctorModel.getDoctorById(prescription.doctor_id);
+    const isDoctor = req.user.role !== 'admin' && doctor.user_id === (req.user.sub || req.user.id);
+    const isPatient = prescription.patient_id === req.user.patient_id; // Assuming patient_id is in token
+
+    if (!isDoctor && !isPatient && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    res.json({
+      success: true,
+      data: prescription
+    });
+  } catch (error) {
+    console.error('Error fetching prescription:', error);
+    res.status(500).json({ error: 'Failed to fetch prescription' });
+  }
+});
+
+// Get doctor's prescriptions
+router.get('/doctors/:doctorId/prescriptions', verifyToken, async (req, res) => {
+  try {
+    const { doctorId } = req.params;
+    const { limit } = req.query;
+
+    const doctor = await doctorModel.getDoctorById(parseInt(doctorId));
+    if (!doctor) {
+      return res.status(404).json({ error: 'Doctor not found' });
+    }
+
+    // Check authorization
+    if (req.user.role !== 'admin' && doctor.user_id !== (req.user.sub || req.user.id)) {
+      return res.status(403).json({ error: 'Unauthorized' });
+    }
+
+    const prescriptions = await prescriptionModel.getPrescriptionsByDoctor(
+      parseInt(doctorId),
+      limit ? parseInt(limit) : 50
+    );
+
+    res.json({
+      success: true,
+      data: prescriptions
+    });
+  } catch (error) {
+    console.error('Error fetching prescriptions:', error);
+    res.status(500).json({ error: 'Failed to fetch prescriptions' });
   }
 });
 

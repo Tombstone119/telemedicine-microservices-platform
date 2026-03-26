@@ -6,7 +6,7 @@ This document summarizes the comprehensive doctor profile and availability manag
 ## Architecture Overview
 
 ### Database Schema
-Three main tables were created in PostgreSQL:
+Four main tables were created in PostgreSQL:
 
 #### 1. **doctors** table
 Stores complete doctor profile information:
@@ -29,6 +29,27 @@ Tracks doctor's leave/unavailable dates:
 - Reason for leave
 - Automatic deduplication via UPSERT on (doctor_id, leave_date)
 
+#### 4. **appointments** table
+Manages patient appointments:
+- Doctor and patient relationship
+- Appointment date, time, and duration
+- Status tracking (pending → accepted → completed)
+- Symptoms and consultation notes
+- Consultation fee tracking
+
+#### 5. **prescriptions** table
+Stores digital prescriptions:
+- Links to appointments
+- Doctor and patient information
+- Medicines as JSON array
+- Dosage instructions and validity period
+
+#### 6. **prescription_medicines** table
+Detailed medicine information:
+- Individual medicine entries
+- Dosage, frequency, duration
+- Specific instructions per medicine
+
 ### Database Indexes
 Created indexes on:
 - doctors.user_id (for quick user lookups)
@@ -36,6 +57,8 @@ Created indexes on:
 - doctors.is_active (for active doctor queries)
 - doctor_availability.doctor_id
 - doctor_leaves.doctor_id
+- appointments.doctor_id, appointments.patient_id, appointments.appointment_date, appointments.status
+- prescriptions.doctor_id, prescriptions.patient_id, prescriptions.appointment_id
 
 ## File Structure
 
@@ -47,7 +70,8 @@ services/doctor-service/
 │   ├── schema.js            # Database schema initialization
 │   ├── models.js            # Business logic for CRUD operations
 │   ├── validation.js        # Input validation using Joi
-│   └── routes.js            # API route definitions
+│   ├── routes.js            # API route definitions
+│   └── eventPublisher.js    # Event publishing to RabbitMQ
 ├── package.json             # Dependencies
 ├── .env                     # Environment variables
 ├── Dockerfile              # Container configuration
@@ -76,6 +100,29 @@ services/doctor-service/
 - **Delete** specific leave entries
 - **Check** if a given date is a leave date
 
+### 4. Appointment Management
+- **Create** appointments (typically from appointment service)
+- **Accept/Reject** pending appointments
+- **Complete** accepted appointments
+- **Get** doctor's appointments with status filtering
+- **Status tracking**: Pending → Accepted → Completed → Cancelled
+
+### 5. Prescription Management
+- **Issue** digital prescriptions after appointments
+- **Store** medicines with dosage, frequency, duration
+- **Link** prescriptions to specific appointments
+- **Retrieve** prescriptions by doctor or patient
+- **Structured medicine data** with detailed instructions
+
+### 6. Event Publishing (Microservices Communication)
+- **DoctorRegistered**: Published when new doctor joins
+- **AppointmentAccepted**: When doctor accepts appointment
+- **AppointmentRejected**: When doctor rejects appointment
+- **AppointmentCompleted**: When consultation is finished
+- **PrescriptionIssued**: When prescription is created
+- **DoctorProfileUpdated**: When profile information changes
+- **RabbitMQ integration** with topic exchange for event routing
+
 ### 4. Security & Authorization
 - JWT-based authentication on all protected endpoints
 - Role-based access control (admin, doctor)
@@ -95,7 +142,7 @@ services/doctor-service/
 - Database error handling
 - Validation error details returned to client
 
-## API Endpoints (15 total)
+## API Endpoints (20 total)
 
 ### Doctor Profile Endpoints (6)
 - `GET /doctors` - List all doctors with filters
@@ -116,6 +163,18 @@ services/doctor-service/
 - `POST /doctors/:doctorId/leaves` - Add leave date
 - `DELETE /doctors/:doctorId/leaves/:leaveDate` - Delete leave
 
+### Appointment Endpoints (4)
+- `GET /doctors/:doctorId/appointments` - Get doctor's appointments
+- `GET /appointments/:appointmentId` - Get specific appointment
+- `PUT /appointments/:appointmentId/accept` - Accept appointment
+- `PUT /appointments/:appointmentId/reject` - Reject appointment
+- `PUT /appointments/:appointmentId/complete` - Complete appointment
+
+### Prescription Endpoints (3)
+- `POST /prescriptions` - Create prescription
+- `GET /prescriptions/:prescriptionId` - Get prescription by ID
+- `GET /doctors/:doctorId/prescriptions` - Get doctor's prescriptions
+
 ### Health Check (1)
 - `GET /health` - Service health check
 
@@ -124,7 +183,8 @@ services/doctor-service/
 ```json
 {
   "pg": "^8.11.0",        // PostgreSQL client
-  "joi": "^17.11.0"       // Input validation
+  "joi": "^17.11.0",      // Input validation
+  "amqplib": "^0.10.3"    // RabbitMQ client for event publishing
 }
 ```
 
@@ -142,12 +202,28 @@ Existing dependencies:
 - Proper error handling for connection failures
 
 ### Models Architecture
-Three separate model objects:
+Four separate model objects:
 - **doctorModel**: Doctor CRUD operations
 - **availabilityModel**: Availability schedule management
 - **leaveModel**: Leave management
+- **appointmentModel**: Appointment lifecycle management
+- **prescriptionModel**: Digital prescription management
 
 Each model is independently testable and follows SOLID principles.
+
+### Event Publishing System
+- **RabbitMQ integration** with topic exchange
+- **Asynchronous event publishing** that doesn't block main operations
+- **Structured event data** with timestamps and service identification
+- **Event types**: DoctorRegistered, AppointmentAccepted, AppointmentRejected, AppointmentCompleted, PrescriptionIssued, DoctorProfileUpdated
+- **Error isolation**: Event publishing failures don't affect core business logic
+
+### Validation & Security
+- Comprehensive Joi validation schemas for all inputs
+- JWT-based authentication with role-based access control
+- Doctors can only manage their own data (except admins)
+- SQL injection prevention through parameterized queries
+- Proper error responses with detailed validation messages
 
 ### Validation Strategy
 - Request-level validation with clear error messages
