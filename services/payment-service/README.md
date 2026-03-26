@@ -1,10 +1,12 @@
 # Payment Service
 
-The Payment Service handles secure payment processing for telemedicine consultations using Stripe integration. It manages payment initiation, processing, webhooks, refunds, and invoice generation.
+The Payment Service handles secure payment processing for telemedicine consultations using Stripe integration and additional gateways (PayHere, Dialog Genie, FriMi, PayPal sandbox). It manages payment initiation, processing, webhooks, refunds, and invoice generation.
 
 ## Features
 
 - **Secure Payment Processing**: Stripe integration for PCI-compliant payments
+- **Sri Lankan Gateway Support**: PayHere, Dialog Genie, FriMi sandbox mode
+- **PayPal Sandbox**: International payment support via Paypal sandbox
 - **Payment Methods**: Support for multiple payment methods (cards, digital wallets)
 - **Webhook Handling**: Real-time payment status updates via webhooks
 - **Invoice Generation**: Automatic invoice creation and PDF generation
@@ -170,6 +172,23 @@ RABBITMQ_URL=amqp://localhost
 STRIPE_SECRET_KEY=sk_test_...
 STRIPE_PUBLISHABLE_KEY=pk_test_...
 STRIPE_WEBHOOK_SECRET=whsec_...
+
+# PayHere (Sri Lanka)
+PAYHERE_MERCHANT_ID=121212
+PAYHERE_RETURN_URL=http://localhost:3000/payment/success
+PAYHERE_CANCEL_URL=http://localhost:3000/payment/cancel
+PAYHERE_NOTIFY_URL=http://localhost:3005/api/payments/webhook/payhere
+
+# Dialog Genie (Sri Lanka)
+DIALOG_GENIE_API_KEY=your-dialog-genie-api-key
+DIALOG_GENIE_URL=https://sandbox.dialog.lk/genie/pay
+
+# FriMi (Sri Lanka)
+FRIMI_API_KEY=your-frimi-api-key
+FRIMI_URL=https://sandbox.frimi.lk/invoice
+
+# PayPal Sandbox
+PAYPAL_SANDBOX_URL=https://www.sandbox.paypal.com/checkoutnow
 
 # JWT
 JWT_SECRET=your-jwt-secret-key

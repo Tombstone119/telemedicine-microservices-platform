@@ -84,6 +84,92 @@ class PaymentGatewayService {
   }
 
   /**
+   * Create a PayHere payment URL (sandbox)
+   */
+  async createPayHerePayment(paymentData) {
+    const merchantId = process.env.PAYHERE_MERCHANT_ID;
+    const returnUrl = process.env.PAYHERE_RETURN_URL || this.successUrl;
+    const cancelUrl = process.env.PAYHERE_CANCEL_URL || this.cancelUrl;
+
+    if (!merchantId) {
+      throw new Error('PAYHERE_MERCHANT_ID is not configured');
+    }
+
+    const paymentReference = this.generatePaymentReference(paymentData.paymentId);
+    const data = {
+      merchant_id: merchantId,
+      return_url: returnUrl,
+      cancel_url: cancelUrl,
+      notify_url: process.env.PAYHERE_NOTIFY_URL || `${process.env.PAYMENT_SERVICE_URL || 'http://localhost:3005'}/api/payments/webhook/payhere`,
+      order_id: paymentReference,
+      items: paymentData.description || 'Telemedicine consultation',
+      currency: paymentData.currency || 'USD',
+      amount: paymentData.amount,
+      first_name: paymentData.patientName || 'Patient',
+      last_name: paymentData.patientName ? paymentData.patientName.split(' ').slice(-1).join(' ') : 'Customer',
+      email: paymentData.patientEmail || 'patient@example.com'
+    };
+
+    const queryParams = new URLSearchParams();
+    Object.keys(data).forEach(key => queryParams.append(key, data[key]));
+
+    const url = `https://sandbox.payhere.lk/pay/checkout?${queryParams.toString()}`;
+
+    return {
+      gateway: 'payhere',
+      paymentReference,
+      paymentUrl: url,
+      amount: paymentData.amount,
+      currency: paymentData.currency || 'USD',
+      status: 'pending'
+    };
+  }
+
+  /**
+   * Create a Dialog Genie payment link (mocked sandbox)
+   */
+  async createDialogGeniePayment(paymentData) {
+    const apiKey = process.env.DIALOG_GENIE_API_KEY;
+    if (!apiKey) {
+      throw new Error('DIALOG_GENIE_API_KEY is not configured');
+    }
+
+    const paymentReference = this.generatePaymentReference(paymentData.paymentId);
+    const link = `${process.env.DIALOG_GENIE_URL || 'https://sandbox.dialog.lk/genie/pay'}?ref=${encodeURIComponent(paymentReference)}&amount=${encodeURIComponent(paymentData.amount)}&currency=${encodeURIComponent(paymentData.currency || 'USD')}`;
+
+    return {
+      gateway: 'dialog_genie',
+      paymentReference,
+      paymentUrl: link,
+      amount: paymentData.amount,
+      currency: paymentData.currency || 'USD',
+      status: 'pending'
+    };
+  }
+
+  /**
+   * Create a FriMi payment link (mocked sandbox)
+   */
+  async createFriMiPayment(paymentData) {
+    const apiKey = process.env.FRIMI_API_KEY;
+    if (!apiKey) {
+      throw new Error('FRIMI_API_KEY is not configured');
+    }
+
+    const paymentReference = this.generatePaymentReference(paymentData.paymentId);
+    const link = `${process.env.FRIMI_URL || 'https://sandbox.frimi.lk/invoice'}?ref=${encodeURIComponent(paymentReference)}&amount=${encodeURIComponent(paymentData.amount)}&currency=${encodeURIComponent(paymentData.currency || 'USD')}`;
+
+    return {
+      gateway: 'frimi',
+      paymentReference,
+      paymentUrl: link,
+      amount: paymentData.amount,
+      currency: paymentData.currency || 'USD',
+      status: 'pending'
+    };
+  }
+
+  /**
    * Retrieve payment intent status
    */
   async getPaymentIntent(paymentIntentId) {
@@ -175,6 +261,22 @@ class PaymentGatewayService {
           this.successUrl,
           this.cancelUrl
         );
+      case 'payhere':
+        return await this.createPayHerePayment(paymentData);
+      case 'dialog_genie':
+      case 'dialog':
+        return await this.createDialogGeniePayment(paymentData);
+      case 'frimi':
+        return await this.createFriMiPayment(paymentData);
+      case 'paypal':
+        return {
+          gateway: 'paypal',
+          paymentReference: this.generatePaymentReference(paymentData.paymentId),
+          paymentUrl: `${process.env.PAYPAL_SANDBOX_URL || 'https://www.sandbox.paypal.com/checkoutnow'}?amount=${encodeURIComponent(paymentData.amount)}&currency=${encodeURIComponent(paymentData.currency || 'USD')}`,
+          amount: paymentData.amount,
+          currency: paymentData.currency || 'USD',
+          status: 'pending'
+        };
       default:
         throw new Error(`Unsupported payment gateway: ${gateway}`);
     }

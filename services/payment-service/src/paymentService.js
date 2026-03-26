@@ -12,27 +12,33 @@ class PaymentService {
    */
   async initiatePayment(paymentData) {
     try {
-      const { appointment_id, payment_method = 'stripe', gateway = 'stripe' } = paymentData;
+      const appointmentId = paymentData.appointment_id || paymentData.appointmentId;
+      const paymentMethod = paymentData.payment_method || paymentData.paymentMethodId || 'stripe';
+      const gateway = (paymentData.gateway || 'stripe').toLowerCase();
+
+      if (!appointmentId) {
+        throw new Error('appointmentId is required');
+      }
 
       // Validate appointment
-      const appointment = await this.validateAppointmentForPayment(appointment_id);
+      const appointment = await this.validateAppointmentForPayment(appointmentId);
 
       // Check if payment already exists
-      const existingPayment = await paymentRepository.getPaymentByAppointmentId(appointment_id);
+      const existingPayment = await paymentRepository.getPaymentByAppointmentId(appointmentId);
       if (existingPayment && existingPayment.status === 'paid') {
         throw new Error('Payment already completed for this appointment');
       }
 
       // Create payment record
       const paymentRecord = await paymentRepository.createPayment({
-        appointment_id,
+        appointment_id: appointmentId,
         patient_id: appointment.patient_id,
         doctor_id: appointment.doctor_id,
         amount: appointment.consultation_fee || paymentData.amount,
-        currency: paymentData.currency || 'USD',
-        payment_method,
+        currency: (paymentData.currency || 'USD').toUpperCase(),
+        payment_method: paymentMethod,
         gateway,
-        description: `Consultation payment for appointment ${appointment_id}`,
+        description: `Consultation payment for appointment ${appointmentId}`,
         metadata: {
           appointment_date: appointment.appointment_date,
           appointment_time: appointment.appointment_time,
@@ -41,16 +47,21 @@ class PaymentService {
         }
       });
 
+      // Validate amount against gateway limits
+      paymentGateway.validateAmount(paymentRecord.amount);
+
       // Initiate payment with gateway
       const gatewayResponse = await paymentGateway.initiatePayment(gateway, {
         paymentId: paymentRecord.id,
-        appointmentId: appointment_id,
+        appointmentId,
         patientId: appointment.patient_id,
         doctorId: appointment.doctor_id,
         amount: paymentRecord.amount,
         currency: paymentRecord.currency,
         description: paymentRecord.description,
-        patientEmail: paymentData.patient_email
+        metadata: paymentRecord.metadata,
+        patientEmail: paymentData.patient_email,
+        patientName: appointment.patient_name
       });
 
       // Update payment with gateway transaction ID
@@ -73,10 +84,7 @@ class PaymentService {
       });
 
       return {
-        payment_id: paymentRecord.id,
-        amount: paymentRecord.amount,
-        currency: paymentRecord.currency,
-        status: 'pending',
+        payment: paymentRecord,
         gateway_response: gatewayResponse
       };
     } catch (error) {

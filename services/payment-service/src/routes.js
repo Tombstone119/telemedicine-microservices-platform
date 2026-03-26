@@ -3,7 +3,7 @@ const router = express.Router();
 const paymentService = require('./paymentService');
 const webhookHandler = require('./webhookHandler');
 const invoiceService = require('./invoice');
-const auth = require('../../shared/middleware/auth');
+const { verifyToken, requireRole } = require('../../../shared/middleware/auth');
 
 // Middleware to parse raw body for webhooks
 const rawBodyParser = (req, res, next) => {
@@ -34,9 +34,9 @@ const rawBodyParser = (req, res, next) => {
  * @desc Initiate a payment for an appointment
  * @access Private (Patient)
  */
-router.post('/initiate', auth.authenticate, auth.authorize(['patient']), async (req, res) => {
+router.post('/initiate', verifyToken, requireRole(['patient']), async (req, res) => {
   try {
-    const { appointmentId, paymentMethodId, amount, currency = 'usd' } = req.body;
+    const { appointmentId, paymentMethodId, amount, currency = 'usd', gateway = 'stripe', patient_email } = req.body;
 
     if (!appointmentId || !amount) {
       return res.status(400).json({
@@ -50,7 +50,9 @@ router.post('/initiate', auth.authenticate, auth.authorize(['patient']), async (
       patientId: req.user.id,
       paymentMethodId,
       amount: parseFloat(amount),
-      currency: currency.toLowerCase()
+      currency: currency.toLowerCase(),
+      gateway: gateway.toLowerCase(),
+      patient_email
     };
 
     const result = await paymentService.initiatePayment(paymentData);
@@ -58,7 +60,7 @@ router.post('/initiate', auth.authenticate, auth.authorize(['patient']), async (
     res.status(201).json({
       success: true,
       payment: result.payment,
-      clientSecret: result.clientSecret
+      gatewayResponse: result.gateway_response
     });
   } catch (error) {
     console.error('Error initiating payment:', error);
@@ -70,11 +72,37 @@ router.post('/initiate', auth.authenticate, auth.authorize(['patient']), async (
 });
 
 /**
+ * @route GET /payments/gateways
+ * @desc List supported payment gateways and resolver data
+ * @access Public
+ */
+router.get('/gateways', async (req, res) => {
+  try {
+    res.json({
+      gateways: [
+        'stripe',
+        'stripe_checkout',
+        'paypal',
+        'payhere',
+        'dialog_genie',
+        'frimi'
+      ]
+    });
+  } catch (error) {
+    console.error('Error listing payment gateways:', error);
+    res.status(500).json({
+      error: 'Failed to fetch gateways',
+      message: error.message
+    });
+  }
+});
+
+/**
  * @route GET /payments/:id
  * @desc Get payment details
  * @access Private (Patient/Doctor/Admin)
  */
-router.get('/:id', auth.authenticate, async (req, res) => {
+router.get('/:id', verifyToken, async (req, res) => {
   try {
     const paymentId = req.params.id;
     const payment = await paymentService.getPayment(paymentId);
@@ -111,7 +139,7 @@ router.get('/:id', auth.authenticate, async (req, res) => {
  * @desc Get payments for current user
  * @access Private (Patient/Doctor)
  */
-router.get('/', auth.authenticate, async (req, res) => {
+router.get('/', verifyToken, async (req, res) => {
   try {
     const { page = 1, limit = 10, status } = req.query;
     let payments;
@@ -139,7 +167,7 @@ router.get('/', auth.authenticate, async (req, res) => {
  * @desc Refund a payment
  * @access Private (Admin/Doctor)
  */
-router.post('/:id/refund', auth.authenticate, auth.authorize(['admin', 'doctor']), async (req, res) => {
+router.post('/:id/refund', verifyToken, requireRole(['admin', 'doctor']), async (req, res) => {
   try {
     const paymentId = req.params.id;
     const { amount, reason } = req.body;
@@ -191,7 +219,7 @@ router.post('/webhook/:gateway', rawBodyParser, async (req, res) => {
  * @desc Generate invoice for a payment
  * @access Private (Patient/Doctor/Admin)
  */
-router.post('/invoices/generate/:paymentId', auth.authenticate, async (req, res) => {
+router.post('/invoices/generate/:paymentId', verifyToken, async (req, res) => {
   try {
     const paymentId = req.params.paymentId;
 
@@ -225,7 +253,7 @@ router.post('/invoices/generate/:paymentId', auth.authenticate, async (req, res)
  * @desc Get invoice details
  * @access Private (Patient/Doctor/Admin)
  */
-router.get('/invoices/:id', auth.authenticate, async (req, res) => {
+router.get('/invoices/:id', verifyToken, async (req, res) => {
   try {
     const invoiceId = req.params.id;
     const invoice = await invoiceService.getInvoice(invoiceId);
@@ -258,7 +286,7 @@ router.get('/invoices/:id', auth.authenticate, async (req, res) => {
  * @desc Get invoices for current user
  * @access Private (Patient/Doctor)
  */
-router.get('/invoices', auth.authenticate, async (req, res) => {
+router.get('/invoices', verifyToken, async (req, res) => {
   try {
     const { page = 1, limit = 10 } = req.query;
     let invoices;
@@ -286,7 +314,7 @@ router.get('/invoices', auth.authenticate, async (req, res) => {
  * @desc Download invoice PDF
  * @access Private (Patient/Doctor/Admin)
  */
-router.get('/invoices/:id/pdf', auth.authenticate, async (req, res) => {
+router.get('/invoices/:id/pdf', verifyToken, async (req, res) => {
   try {
     const invoiceId = req.params.id;
     const invoice = await invoiceService.getInvoice(invoiceId);
@@ -323,7 +351,7 @@ router.get('/invoices/:id/pdf', auth.authenticate, async (req, res) => {
  * @desc Send invoice via email
  * @access Private (Patient/Doctor/Admin)
  */
-router.post('/invoices/:id/send', auth.authenticate, async (req, res) => {
+router.post('/invoices/:id/send', verifyToken, async (req, res) => {
   try {
     const invoiceId = req.params.id;
     const { email } = req.body;
@@ -369,7 +397,7 @@ router.post('/invoices/:id/send', auth.authenticate, async (req, res) => {
  * @desc Add a payment method
  * @access Private (Patient)
  */
-router.post('/payment-methods', auth.authenticate, auth.authorize(['patient']), async (req, res) => {
+router.post('/payment-methods', verifyToken, requireRole(['patient']), async (req, res) => {
   try {
     const { paymentMethodId, type, last4 } = req.body;
 
@@ -404,7 +432,7 @@ router.post('/payment-methods', auth.authenticate, auth.authorize(['patient']), 
  * @desc Get payment methods for current user
  * @access Private (Patient)
  */
-router.get('/payment-methods', auth.authenticate, auth.authorize(['patient']), async (req, res) => {
+router.get('/payment-methods', verifyToken, requireRole(['patient']), async (req, res) => {
   try {
     const paymentMethods = await paymentService.getPatientPaymentMethods(req.user.id);
 
@@ -423,7 +451,7 @@ router.get('/payment-methods', auth.authenticate, auth.authorize(['patient']), a
  * @desc Remove a payment method
  * @access Private (Patient)
  */
-router.delete('/payment-methods/:id', auth.authenticate, auth.authorize(['patient']), async (req, res) => {
+router.delete('/payment-methods/:id', verifyToken, requireRole(['patient']), async (req, res) => {
   try {
     const paymentMethodId = req.params.id;
 

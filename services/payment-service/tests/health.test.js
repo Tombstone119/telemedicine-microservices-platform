@@ -1,5 +1,5 @@
 const request = require('supertest');
-const app = require('./src/index');
+const app = require('../src/index');
 
 describe('Payment Service', () => {
   describe('GET /health', () => {
@@ -18,6 +18,18 @@ describe('Payment Service', () => {
       await request(app)
         .get('/unknown-route')
         .expect(404);
+    });
+  });
+
+  describe('GET /api/payments/gateways', () => {
+    it('should return supported gateways', async () => {
+      const response = await request(app)
+        .get('/api/payments/gateways')
+        .expect(200);
+
+      expect(response.body).toHaveProperty('gateways');
+      expect(Array.isArray(response.body.gateways)).toBe(true);
+      expect(response.body.gateways).toEqual(expect.arrayContaining(['stripe', 'payhere', 'dialog_genie', 'frimi', 'paypal']));
     });
   });
 });

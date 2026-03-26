@@ -80,7 +80,9 @@ async function startServer() {
   }
 }
 
-// Start the server
-startServer();
+// Start the server (skip automatic startup in test mode)
+if (process.env.NODE_ENV !== 'test') {
+  startServer();
+}
 
 module.exports = app;
