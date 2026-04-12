@@ -1,7 +1,7 @@
 FROM node:20-alpine
 WORKDIR /app
-COPY package*.json ./
+COPY services/notification-service/package*.json ./
 RUN npm install
-COPY . .
+COPY services/notification-service/. .
 EXPOSE 3006
 CMD ["node", "src/index.js"]
