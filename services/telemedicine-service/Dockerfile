@@ -1,7 +1,8 @@
 FROM node:20-alpine
 WORKDIR /app
-COPY package*.json ./
+COPY services/telemedicine-service/package*.json ./
 RUN npm install
-COPY . .
+COPY services/telemedicine-service/. .
+COPY shared /shared
 EXPOSE 3004
 CMD ["node", "src/index.js"]

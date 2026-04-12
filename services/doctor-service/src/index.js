@@ -1,14 +1,47 @@
-const express = require('express');
-const cors = require('cors');
 require('dotenv').config();
 
+const express = require('express');
+const cors = require('cors');
+const { initDB } = require('./db');
+const profileRouter = require('./routes/profile');
+const availabilityRouter = require('./routes/availability');
+const appointmentsRouter = require('./routes/appointments');
+const prescriptionsRouter = require('./routes/prescriptions');
+
 const app = express();
-app.use(express.json());
+
 app.use(cors());
+app.use(express.json());
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'doctor-service' });
+  res.json({
+    status: 'ok',
+    service: 'doctor-service',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.use('/api/doctors', profileRouter);
+app.use('/api/doctors', availabilityRouter);
+app.use('/api/doctors', appointmentsRouter);
+app.use('/api/doctors', prescriptionsRouter);
+
+app.use((err, req, res, next) => {
+  return res.status(500).json({ error: err.message || 'Server error' });
 });
 
 const PORT = process.env.PORT || 3002;
-app.listen(PORT, () => console.log(`doctor-service running on port ${PORT}`));
+
+async function startServer() {
+  try {
+    await initDB();
+    app.listen(PORT, () => {
+      console.log(`Doctor service running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('[DoctorService] Failed to initialize database:', error);
+    process.exit(1);
+  }
+}
+
+startServer();
