@@ -461,8 +461,11 @@ router.get('/appointments/:appointmentId', verifyToken, async (req, res) => {
     }
 
     // Check authorization
-    if (req.user.role !== 'admin' && appointment.doctor_id !== parseInt(req.params.doctorId)) {
-      return res.status(403).json({ error: 'Unauthorized' });
+    if (req.user.role !== 'admin') {
+      const doctor = await doctorModel.getDoctorById(appointment.doctor_id);
+      if (!doctor || doctor.user_id !== (req.user.sub || req.user.id)) {
+        return res.status(403).json({ error: 'Unauthorized' });
+      }
     }
 
     res.json({

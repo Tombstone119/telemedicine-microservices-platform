@@ -94,7 +94,7 @@ router.get('/sessions/:sessionId', securityService.authenticate, async (req, res
     const { sessionId } = req.params;
     const user = req.user;
 
-    const session = await sessionService.getSessionByAppointmentId(sessionId);
+    const session = await sessionService.sessionRepository.getSessionById(sessionId);
 
     if (!session) {
       return res.status(404).json({ error: 'Video session not found' });

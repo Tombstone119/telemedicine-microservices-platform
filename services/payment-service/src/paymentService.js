@@ -5,6 +5,7 @@ const axios = require('axios');
 class PaymentService {
   constructor() {
     this.appointmentServiceUrl = process.env.APPOINTMENT_SERVICE_URL || 'http://localhost:3003';
+    this.paymentMethods = new Map();
   }
 
   /**
@@ -351,6 +352,72 @@ class PaymentService {
   }
 
   /**
+   * Get doctor/patient appointment details for a payment
+   */
+  async getAppointmentForPayment(paymentId) {
+    const payment = await paymentRepository.getPaymentById(paymentId);
+    if (!payment) {
+      throw new Error('Payment not found');
+    }
+    return this.getAppointmentDetails(payment.appointment_id);
+  }
+
+  /**
+   * List payments for a patient
+   */
+  async getPatientPayments(patientId, page = 1, limit = 10, status = null) {
+    const rows = await paymentRepository.getPaymentsByPatient(patientId, 1000);
+    const filtered = status ? rows.filter((row) => row.status === status) : rows;
+    const offset = (page - 1) * limit;
+    return filtered.slice(offset, offset + limit);
+  }
+
+  /**
+   * List payments for a doctor
+   */
+  async getDoctorPayments(doctorId, page = 1, limit = 10, status = null) {
+    const rows = await paymentRepository.getPaymentsByDoctor(doctorId, 1000);
+    const filtered = status ? rows.filter((row) => row.status === status) : rows;
+    const offset = (page - 1) * limit;
+    return filtered.slice(offset, offset + limit);
+  }
+
+  /**
+   * Add a payment method (demo-memory implementation)
+   */
+  async addPaymentMethod(patientId, paymentMethod) {
+    const id = paymentMethod.paymentMethodId || `pm_${Date.now()}`;
+    const existing = this.paymentMethods.get(patientId) || [];
+    const record = {
+      id,
+      type: paymentMethod.type,
+      last4: paymentMethod.last4 || null,
+      created_at: new Date().toISOString()
+    };
+    this.paymentMethods.set(patientId, [...existing.filter((m) => m.id !== id), record]);
+    return record;
+  }
+
+  /**
+   * Get payment methods (demo-memory implementation)
+   */
+  async getPatientPaymentMethods(patientId) {
+    return this.paymentMethods.get(patientId) || [];
+  }
+
+  /**
+   * Remove payment method (demo-memory implementation)
+   */
+  async removePaymentMethod(patientId, paymentMethodId) {
+    const existing = this.paymentMethods.get(patientId) || [];
+    this.paymentMethods.set(
+      patientId,
+      existing.filter((method) => method.id !== paymentMethodId)
+    );
+    return { removed: true };
+  }
+
+  /**
    * Process refund
    */
   async processRefund(paymentId, amount = null, reason = 'requested_by_customer') {
@@ -382,6 +449,13 @@ class PaymentService {
       console.error('Error processing refund:', error);
       throw error;
     }
+  }
+
+  /**
+   * Route compatibility alias
+   */
+  async refundPayment(paymentId, amount = null, reason = 'requested_by_customer') {
+    return this.processRefund(paymentId, amount, reason);
   }
 }
 

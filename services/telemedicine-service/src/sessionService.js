@@ -5,6 +5,7 @@ const axios = require('axios');
 class SessionService {
   constructor() {
     this.appointmentServiceUrl = process.env.APPOINTMENT_SERVICE_URL || 'http://localhost:3003';
+    this.sessionRepository = sessionRepository;
   }
 
   /**

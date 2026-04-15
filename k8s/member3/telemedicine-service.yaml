@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: telemedicine-service
+  labels:
+    app: telemedicine-service
+    app.kubernetes.io/part-of: telemedicine-platform
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: telemedicine-service
+  template:
+    metadata:
+      labels:
+        app: telemedicine-service
+    spec:
+      containers:
+      - name: telemedicine-service
+        image: your-dockerhub-username/telemedicine-service:latest
+        imagePullPolicy: Always
+        ports:
+        - containerPort: 3004
+        env:
+        - name: PORT
+          value: "3004"
+        - name: NODE_ENV
+          valueFrom:
+            configMapKeyRef:
+              name: member3-services-config
+              key: NODE_ENV
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: member3-services-secrets
+              key: JWT_SECRET
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              name: member3-services-secrets
+              key: DATABASE_URL_TELEMEDICINE
+        - name: APPOINTMENT_SERVICE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: member3-services-config
+              key: APPOINTMENT_SERVICE_URL
+        - name: JITSI_DOMAIN
+          valueFrom:
+            configMapKeyRef:
+              name: member3-services-config
+              key: JITSI_DOMAIN
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3004
+          initialDelaySeconds: 20
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3004
+          initialDelaySeconds: 10
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: telemedicine-service
+  labels:
+    app: telemedicine-service
+spec:
+  selector:
+    app: telemedicine-service
+  ports:
+  - name: http
+    port: 3004
+    targetPort: 3004
+  type: ClusterIP

@@ -207,7 +207,10 @@ const paymentRepository = {
    */
   async getInvoiceById(invoiceId) {
     const query = `
-      SELECT * FROM invoices WHERE id = $1;
+      SELECT i.*, p.patient_id, p.doctor_id, p.appointment_id, p.status AS payment_status, p.payment_method
+      FROM invoices i
+      JOIN payments p ON p.id = i.payment_id
+      WHERE i.id = $1;
     `;
     const result = await pool.query(query, [invoiceId]);
     return result.rows[0];
@@ -218,10 +221,61 @@ const paymentRepository = {
    */
   async getInvoiceByPaymentId(paymentId) {
     const query = `
-      SELECT * FROM invoices WHERE payment_id = $1;
+      SELECT i.*, p.patient_id, p.doctor_id, p.appointment_id, p.status AS payment_status, p.payment_method
+      FROM invoices i
+      JOIN payments p ON p.id = i.payment_id
+      WHERE i.payment_id = $1;
     `;
     const result = await pool.query(query, [paymentId]);
     return result.rows[0];
+  },
+
+  /**
+   * Get invoices by patient ID
+   */
+  async getInvoicesByPatientId(patientId, page = 1, limit = 10) {
+    const offset = (page - 1) * limit;
+    const query = `
+      SELECT i.*, p.patient_id, p.doctor_id, p.appointment_id, p.status AS payment_status, p.payment_method
+      FROM invoices i
+      JOIN payments p ON p.id = i.payment_id
+      WHERE p.patient_id = $1
+      ORDER BY i.created_at DESC
+      LIMIT $2 OFFSET $3;
+    `;
+    const result = await pool.query(query, [patientId, limit, offset]);
+    return result.rows;
+  },
+
+  /**
+   * Get invoices by doctor ID
+   */
+  async getInvoicesByDoctorId(doctorId, page = 1, limit = 10) {
+    const offset = (page - 1) * limit;
+    const query = `
+      SELECT i.*, p.patient_id, p.doctor_id, p.appointment_id, p.status AS payment_status, p.payment_method
+      FROM invoices i
+      JOIN payments p ON p.id = i.payment_id
+      WHERE p.doctor_id = $1
+      ORDER BY i.created_at DESC
+      LIMIT $2 OFFSET $3;
+    `;
+    const result = await pool.query(query, [doctorId, limit, offset]);
+    return result.rows;
+  },
+
+  /**
+   * Get invoice statistics
+   */
+  async getInvoiceStats() {
+    const query = `
+      SELECT
+        COUNT(*) AS total_count,
+        COALESCE(SUM(total_amount), 0) AS total_revenue
+      FROM invoices;
+    `;
+    const result = await pool.query(query);
+    return result.rows[0] || { total_count: 0, total_revenue: 0 };
   },
 
   /**

@@ -1,9 +1,10 @@
 const paymentRepository = require('./paymentRepository');
 const eventPublisher = require('./eventPublisher');
+const axios = require('axios');
 
 class InvoiceService {
   constructor() {
-    this.invoiceCounter = 0; // In production, this would be managed by the database
+    this.appointmentServiceUrl = process.env.APPOINTMENT_SERVICE_URL || 'http://localhost:3003';
   }
 
   /**
@@ -16,46 +17,39 @@ class InvoiceService {
         throw new Error('Payment not found');
       }
 
+      // Avoid duplicate invoices for the same payment
+      const existing = await paymentRepository.getInvoiceByPaymentId(paymentId);
+      if (existing) {
+        return existing;
+      }
+
       // Get appointment details for invoice
       const appointment = await this.getAppointmentDetails(payment.appointment_id);
 
-      const invoice = {
-        invoiceId: this.generateInvoiceId(),
-        paymentId: payment.id,
-        appointmentId: payment.appointment_id,
-        patientId: appointment.patient_id,
-        doctorId: appointment.doctor_id,
-        amount: payment.amount,
-        currency: payment.currency,
-        taxAmount: this.calculateTax(payment.amount),
-        totalAmount: payment.amount + this.calculateTax(payment.amount),
-        status: payment.status,
-        issuedAt: new Date().toISOString(),
-        dueDate: this.calculateDueDate(),
-        items: [
-          {
-            description: `Consultation with Dr. ${appointment.doctor_name}`,
-            quantity: 1,
-            unitPrice: payment.amount,
-            total: payment.amount
-          }
-        ],
-        patientDetails: {
-          name: appointment.patient_name,
-          email: appointment.patient_email,
-          phone: appointment.patient_phone
-        },
-        doctorDetails: {
-          name: appointment.doctor_name,
-          specialization: appointment.doctor_specialization,
-          licenseNumber: appointment.doctor_license
-        },
-        paymentMethod: payment.payment_method,
-        transactionId: payment.transaction_id
+      const taxAmount = this.calculateTax(payment.amount);
+      const totalAmount = Number(payment.amount) + Number(taxAmount);
+
+      const invoiceData = {
+        payment_id: payment.id,
+        invoice_number: this.generateInvoiceNumber(payment.id),
+        patient_name: appointment.patient_name || `Patient #${payment.patient_id}`,
+        doctor_name: appointment.doctor_name || `Doctor #${payment.doctor_id}`,
+        appointment_date: appointment.appointment_date || new Date().toISOString().slice(0, 10),
+        consultation_fee: payment.amount,
+        tax_amount: taxAmount,
+        total_amount: totalAmount,
+        invoice_data: {
+          appointment_id: payment.appointment_id,
+          patient_id: payment.patient_id,
+          doctor_id: payment.doctor_id,
+          payment_method: payment.payment_method,
+          currency: payment.currency,
+          issued_at: new Date().toISOString()
+        }
       };
 
       // Save invoice to database
-      const savedInvoice = await paymentRepository.createInvoice(invoice);
+      const savedInvoice = await paymentRepository.createInvoice(invoiceData);
 
       // Publish invoice generated event
       await eventPublisher.publishInvoiceGenerated({
@@ -114,21 +108,8 @@ class InvoiceService {
    * Update invoice status
    */
   async updateInvoiceStatus(invoiceId, status) {
-    try {
-      const updatedInvoice = await paymentRepository.updateInvoiceStatus(invoiceId, status);
-
-      // Publish invoice status updated event
-      await eventPublisher.publishInvoiceStatusUpdated({
-        invoiceId: invoiceId,
-        status: status,
-        updatedAt: new Date().toISOString()
-      });
-
-      return updatedInvoice;
-    } catch (error) {
-      console.error('Error updating invoice status:', error);
-      throw error;
-    }
+    // Schema does not store invoice status separately; keep for compatibility.
+    return { id: invoiceId, status };
   }
 
   /**
@@ -147,7 +128,7 @@ class InvoiceService {
 
       // For now, return a placeholder
       return {
-        filename: `invoice-${invoice.invoice_id}.pdf`,
+        filename: `invoice-${invoice.invoice_number}.pdf`,
         content: pdfContent,
         contentType: 'application/pdf'
       };
@@ -166,7 +147,7 @@ class InvoiceService {
 
       // In a real implementation, you would integrate with an email service
       // like SendGrid, Mailgun, or AWS SES
-      console.log(`Sending invoice ${invoice.invoice_id} to ${email}`);
+      console.log(`Sending invoice ${invoice.invoice_number} to ${email}`);
 
       // Publish email sent event
       await eventPublisher.publishInvoiceSent({
@@ -186,46 +167,28 @@ class InvoiceService {
    * Calculate tax amount (placeholder - implement based on your tax rules)
    */
   calculateTax(amount) {
-    // Example: 10% tax
-    return Math.round(amount * 0.1 * 100) / 100;
+    const rate = Number(process.env.TAX_RATE || 0);
+    return Math.round(Number(amount) * rate * 100) / 100;
   }
 
   /**
-   * Calculate due date (30 days from now)
+   * Generate unique invoice number
    */
-  calculateDueDate() {
-    const dueDate = new Date();
-    dueDate.setDate(dueDate.getDate() + 30);
-    return dueDate.toISOString();
-  }
-
-  /**
-   * Generate unique invoice ID
-   */
-  generateInvoiceId() {
-    const timestamp = Date.now();
-    const counter = ++this.invoiceCounter;
-    return `INV-${timestamp}-${counter.toString().padStart(4, '0')}`;
+  generateInvoiceNumber(paymentId) {
+    return `INV-${paymentId}-${Date.now()}`;
   }
 
   /**
    * Get appointment details (placeholder - would call appointment service)
    */
   async getAppointmentDetails(appointmentId) {
-    // In a real implementation, this would make an HTTP call to the appointment service
-    // For now, return mock data
-    return {
-      id: appointmentId,
-      patient_id: 'patient-123',
-      doctor_id: 'doctor-456',
-      patient_name: 'John Doe',
-      patient_email: 'john.doe@example.com',
-      patient_phone: '+1234567890',
-      doctor_name: 'Dr. Jane Smith',
-      doctor_specialization: 'Cardiology',
-      doctor_license: 'MD12345',
-      scheduled_at: new Date().toISOString()
-    };
+    try {
+      const response = await axios.get(`${this.appointmentServiceUrl}/api/appointments/${appointmentId}`);
+      return response.data.data || {};
+    } catch (error) {
+      console.error('Failed to fetch appointment details for invoice:', error.message);
+      return {};
+    }
   }
 
   /**
@@ -238,31 +201,17 @@ TELEMEDICINE PLATFORM INVOICE
 
 Invoice ID: ${invoice.invoice_id}
 Payment ID: ${invoice.payment_id}
-Date: ${new Date(invoice.issued_at).toLocaleDateString()}
-Due Date: ${new Date(invoice.due_date).toLocaleDateString()}
+Date: ${new Date(invoice.generated_at || invoice.created_at).toLocaleDateString()}
 
-Patient Details:
-Name: ${invoice.patient_details.name}
-Email: ${invoice.patient_details.email}
-Phone: ${invoice.patient_details.phone}
+Patient: ${invoice.patient_name}
+Doctor: ${invoice.doctor_name}
 
-Doctor Details:
-Name: ${invoice.doctor_details.name}
-Specialization: ${invoice.doctor_details.specialization}
-License: ${invoice.doctor_details.license}
-
-Items:
-${invoice.items.map(item =>
-  `${item.description} - Quantity: ${item.quantity} - Unit Price: $${item.unit_price} - Total: $${item.total}`
-).join('\n')}
-
-Subtotal: $${invoice.amount}
+Consultation Fee: $${invoice.consultation_fee}
 Tax: $${invoice.tax_amount}
 Total: $${invoice.total_amount}
 
-Payment Method: ${invoice.payment_method}
-Transaction ID: ${invoice.transaction_id}
-Status: ${invoice.status}
+Payment Method: ${invoice.payment_method || 'N/A'}
+Payment Status: ${invoice.payment_status || 'N/A'}
 
 Thank you for using our telemedicine platform!
     `.trim();
@@ -275,11 +224,8 @@ Thank you for using our telemedicine platform!
     try {
       const stats = await paymentRepository.getInvoiceStats();
       return {
-        totalInvoices: stats.total_count || 0,
-        totalRevenue: stats.total_revenue || 0,
-        paidInvoices: stats.paid_count || 0,
-        pendingInvoices: stats.pending_count || 0,
-        overdueInvoices: stats.overdue_count || 0
+        totalInvoices: Number(stats.total_count || 0),
+        totalRevenue: Number(stats.total_revenue || 0)
       };
     } catch (error) {
       console.error('Error getting invoice stats:', error);

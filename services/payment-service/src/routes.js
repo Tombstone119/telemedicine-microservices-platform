@@ -102,7 +102,7 @@ router.get('/gateways', async (req, res) => {
  * @desc Get payment details
  * @access Private (Patient/Doctor/Admin)
  */
-router.get('/:id', verifyToken, async (req, res) => {
+router.get('/:id(\\d+)', verifyToken, async (req, res) => {
   try {
     const paymentId = req.params.id;
     const payment = await paymentService.getPayment(paymentId);
@@ -167,7 +167,7 @@ router.get('/', verifyToken, async (req, res) => {
  * @desc Refund a payment
  * @access Private (Admin/Doctor)
  */
-router.post('/:id/refund', verifyToken, requireRole(['admin', 'doctor']), async (req, res) => {
+router.post('/:id(\\d+)/refund', verifyToken, requireRole(['admin', 'doctor']), async (req, res) => {
   try {
     const paymentId = req.params.id;
     const { amount, reason } = req.body;
