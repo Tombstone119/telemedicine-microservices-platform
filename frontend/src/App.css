@@ -369,7 +369,7 @@
 .signin-drawer {
   width: min(520px, 90%);
   height: auto;
-  max-height: 92vh;
+  max-height: 120vh;
   background: #e8edf0;
   box-shadow: -20px 0 40px rgba(15, 23, 42, 0.25);
   border-radius: 24px;

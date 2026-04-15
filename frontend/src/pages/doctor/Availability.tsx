@@ -6,13 +6,22 @@ import Button from '../../components/UI/Button';
 
 type Slot = {
   id: string | number;
-  day_of_week?: string;
+  day_of_week?: string | number | null;
   start_time?: string;
   end_time?: string;
   is_available?: boolean;
 };
 
 const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+function normalizeDayOfWeek(value: Slot['day_of_week']): string {
+  if (typeof value === 'string') return value.toLowerCase();
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const dayName = days[value];
+    return dayName ? dayName.toLowerCase() : '';
+  }
+  return '';
+}
 
 function unwrapSlots(payload: any): Slot[] {
   if (Array.isArray(payload)) return payload;
@@ -46,7 +55,7 @@ export default function Availability() {
   const grouped = useMemo(() =>
     days.map((day) => ({
       day,
-      slots: slots.filter((slot) => (slot.day_of_week || '').toLowerCase() === day.toLowerCase()),
+      slots: slots.filter((slot) => normalizeDayOfWeek(slot.day_of_week) === day.toLowerCase()),
     })),
     [slots]
   );

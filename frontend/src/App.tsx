@@ -35,6 +35,7 @@ import DoctorProfile from './pages/doctor/Profile';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/Users';
 import AdminDoctors from './pages/admin/Doctors';
+import AdminProfile from './pages/admin/Profile';
 
 const roleHome: Record<UserRole, string> = {
   patient: '/patient',
@@ -408,6 +409,7 @@ export default function App() {
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
               <Route path="doctors" element={<AdminDoctors />} />
+              <Route path="profile" element={<AdminProfile />} />
             </Route>
           </Route>
 

@@ -2,6 +2,7 @@ import React, { Fragment } from 'react';
 import { Disclosure, Menu, Transition } from '@headlessui/react';
 import { Bars3Icon, XMarkIcon } from '@heroicons/react/24/outline';
 import { ChevronDownIcon } from '@heroicons/react/20/solid';
+import { UserCircleIcon } from '@heroicons/react/24/outline';
 import { NavLink } from 'react-router-dom';
 import logo from '../../assert/2.png';
 import { useAuth, UserRole } from '../../context/AuthContext';
@@ -12,13 +13,11 @@ const navigation: Record<UserRole, { label: string; to: string }[]> = {
     { label: 'Search Doctors', to: '/patient/search' },
     { label: 'Appointments', to: '/patient/appointments' },
     { label: 'Symptom Checker', to: '/patient/symptom-checker' },
-    { label: 'Profile', to: '/patient/profile' },
   ],
   doctor: [
     { label: 'Dashboard', to: '/doctor' },
     { label: 'Appointments', to: '/doctor/appointments' },
     { label: 'Availability', to: '/doctor/availability' },
-    { label: 'Profile', to: '/doctor/profile' },
   ],
   admin: [
     { label: 'Dashboard', to: '/admin' },
@@ -65,13 +64,26 @@ export default function Navbar() {
               {user && (
                 <Menu as="div" className="relative">
                   <Menu.Button className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 shadow-sm transition-all duration-200 hover:border-[#107393]/20 hover:text-[#107393]">
-                    <span className="h-2.5 w-2.5 rounded-full bg-emerald-500" />
+                    <UserCircleIcon className="h-5 w-5 text-[#107393]" />
                     {user.full_name}
                     <ChevronDownIcon className="h-4 w-4" />
                   </Menu.Button>
                   <Transition as={Fragment} enter="transition ease-out duration-100" enterFrom="transform opacity-0 scale-95" enterTo="transform opacity-100 scale-100" leave="transition ease-in duration-75" leaveFrom="transform opacity-100 scale-100" leaveTo="transform opacity-0 scale-95">
                     <Menu.Items className="absolute right-0 mt-2 w-56 origin-top-right rounded-2xl border border-slate-200 bg-white p-2 shadow-xl">
                       <div className="px-3 py-2 text-xs uppercase tracking-wider text-slate-500">{user.role}</div>
+                      <Menu.Item>
+                        {({ active }) => (
+                          <NavLink
+                            to={`/${user.role}/profile`}
+                            className={[
+                              'block w-full rounded-xl px-3 py-2 text-left text-sm font-medium',
+                              active ? 'bg-[#107393]/10 text-[#107393]' : 'text-slate-700',
+                            ].join(' ')}
+                          >
+                            Profile
+                          </NavLink>
+                        )}
+                      </Menu.Item>
                       <Menu.Item>
                         {({ active }) => (
                           <button onClick={logout} className={[ 'w-full rounded-xl px-3 py-2 text-left text-sm font-medium', active ? 'bg-red-50 text-red-600' : 'text-slate-700' ].join(' ')}>

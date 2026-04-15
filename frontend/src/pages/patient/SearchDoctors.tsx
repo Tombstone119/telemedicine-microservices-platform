@@ -84,7 +84,7 @@ export default function SearchDoctors() {
 
     try {
       setBooking(true);
-      await api.post('/appointments', {
+      await api.post('/appointments/', {
         doctor_id: selectedDoctor.id,
         appointment_time: appointmentTime,
       });

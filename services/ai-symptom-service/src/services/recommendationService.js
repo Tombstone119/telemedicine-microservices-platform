@@ -4,6 +4,15 @@ function normalizeSpecialty(input) {
   if (!input) return 'general medicine';
   const value = String(input).toLowerCase().trim();
 
+  if (
+    value.includes('primary care') ||
+    value.includes('general practitioner') ||
+    value.includes('urgent care') ||
+    value.includes('family medicine')
+  ) {
+    return 'general medicine';
+  }
+
   const aliases = {
     cardiologist: 'cardiology',
     neurologist: 'neurology',
@@ -91,6 +100,7 @@ async function getTopDoctorRecommendations(inputSpecialty) {
     SELECT
       d.id,
       d.user_id,
+      u.full_name,
       d.specialty,
       d.qualification,
       d.consultation_fee,
@@ -108,10 +118,11 @@ async function getTopDoctorRecommendations(inputSpecialty) {
         '[]'::json
       ) AS weekly_availability
     FROM doctors d
+    JOIN users u ON u.id = d.user_id
     LEFT JOIN availability a ON a.doctor_id = d.id
     WHERE d.available = TRUE
       AND ($1::text IS NULL OR LOWER(d.specialty) LIKE LOWER('%' || $1 || '%'))
-    GROUP BY d.id
+    GROUP BY d.id, u.full_name
     ORDER BY d.rating DESC NULLS LAST, d.consultation_fee ASC NULLS LAST
     LIMIT 25;
   `;
@@ -139,6 +150,7 @@ async function getTopDoctorRecommendations(inputSpecialty) {
       return {
         doctorId: doctor.id,
         userId: doctor.user_id,
+        doctorName: doctor.full_name || `Doctor #${doctor.id}`,
         specialty: doctor.specialty,
         qualification: doctor.qualification,
         rating: Number(doctor.rating || 0),

@@ -9,16 +9,30 @@ router.use(verifyToken);
 router.use(requireRole('patient', 'doctor', 'admin'));
 
 router.post('/message', asyncHandler(async (req, res) => {
-  const { message, conversationHistory = [], patientContext = {} } = req.body;
+  const {
+    message,
+    conversationHistory = [],
+    patientContext = {},
+    severity,
+  } = req.body;
 
   if (!message || typeof message !== 'string') {
     throw new ApiError(400, 'message is required');
   }
 
+  const normalizedSeverity = Number.isFinite(Number(severity))
+    ? Math.max(1, Math.min(5, Number(severity)))
+    : null;
+
+  const mergedContext = {
+    ...(patientContext || {}),
+    ...(normalizedSeverity ? { symptomSeverity: normalizedSeverity } : {}),
+  };
+
   const analysis = await symptomEngine.generateAnalysis({
     message,
     conversationHistory,
-    patientContext,
+    patientContext: mergedContext,
   });
 
   const recommendations = await recommendationService.getTopDoctorRecommendations(
@@ -32,11 +46,25 @@ router.post('/message', asyncHandler(async (req, res) => {
 }));
 
 router.post('/stream', asyncHandler(async (req, res) => {
-  const { message, conversationHistory = [], patientContext = {} } = req.body;
+  const {
+    message,
+    conversationHistory = [],
+    patientContext = {},
+    severity,
+  } = req.body;
 
   if (!message || typeof message !== 'string') {
     throw new ApiError(400, 'message is required');
   }
+
+  const normalizedSeverity = Number.isFinite(Number(severity))
+    ? Math.max(1, Math.min(5, Number(severity)))
+    : null;
+
+  const mergedContext = {
+    ...(patientContext || {}),
+    ...(normalizedSeverity ? { symptomSeverity: normalizedSeverity } : {}),
+  };
 
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
@@ -47,7 +75,7 @@ router.post('/stream', asyncHandler(async (req, res) => {
     const result = await symptomEngine.streamConversation({
       message,
       conversationHistory,
-      patientContext,
+      patientContext: mergedContext,
       onToken: (token) => {
         res.write(`event: token\ndata: ${JSON.stringify({ token })}\n\n`);
       },

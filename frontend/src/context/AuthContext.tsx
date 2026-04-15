@@ -24,6 +24,7 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<AuthUser>;
   register: (data: { full_name: string; email: string; password: string; role: Exclude<UserRole, 'admin'>; }) => Promise<void>;
+  updateUser: (updates: Partial<AuthUser>) => void;
   logout: () => void;
 }
 
@@ -111,6 +112,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(auth.user);
   }, []);
 
+  const updateUser = useCallback((updates: Partial<AuthUser>) => {
+    setUser((current) => {
+      if (!current) {
+        return current;
+      }
+
+      const nextUser = { ...current, ...updates };
+      localStorage.setItem(USER_KEY, JSON.stringify(nextUser));
+      return nextUser;
+    });
+  }, []);
+
   const login = useCallback(async (email: string, password: string) => {
     const { data } = await api.post<AuthResponse>('/auth/login', { email, password });
     persistAuth(data);
@@ -137,9 +150,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       loading,
       login,
       register,
+      updateUser,
       logout,
     }),
-    [loading, login, logout, register, token, user]
+    [loading, login, logout, register, token, updateUser, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
