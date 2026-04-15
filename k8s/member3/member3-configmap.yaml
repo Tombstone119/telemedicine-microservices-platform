@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: member3-services-config
+  labels:
+    app.kubernetes.io/part-of: telemedicine-platform
+data:
+  NODE_ENV: "production"
+  APPOINTMENT_SERVICE_URL: "http://appointment-service:3003"
+  RABBITMQ_URL: "amqp://rabbitmq:5672"
+  JITSI_DOMAIN: "meet.jit.si"
+  PAYMENT_SUCCESS_URL: "https://your-frontend.example/payment/success"
+  PAYMENT_CANCEL_URL: "https://your-frontend.example/payment/cancel"
+  TAX_RATE: "0.10"

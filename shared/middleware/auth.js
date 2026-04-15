@@ -7,6 +7,9 @@ function verifyToken(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded.id && decoded.sub) {
+      decoded.id = decoded.sub;
+    }
     req.user = decoded;
     next();
   } catch (err) {
@@ -15,8 +18,9 @@ function verifyToken(req, res, next) {
 }
 
 function requireRole(...roles) {
+  const normalizedRoles = roles.flat();
   return (req, res, next) => {
-    if (!roles.includes(req.user?.role)) {
+    if (!normalizedRoles.includes(req.user?.role)) {
       return res.status(403).json({ message: 'Forbidden' });
     }
     next();
