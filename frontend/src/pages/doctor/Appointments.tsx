@@ -25,7 +25,7 @@ export default function Appointments() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterDate, setFilterDate] = useState('');
-  const [actionId, setActionId] = useState<string | number | null>(null);
+  const [actionKey, setActionKey] = useState<string | null>(null);
 
   const loadAppointments = async () => {
     try {
@@ -54,28 +54,29 @@ export default function Appointments() {
 
   const updateStatus = async (id: string | number, status: 'confirm' | 'cancel' | 'complete') => {
     try {
-      setActionId(id);
+      setActionKey(`${id}-${status}`);
       await api.put(`/appointments/${id}/${status}`);
-      toast.success(`Appointment ${status}ed`);
+      const statusLabel = status === 'confirm' ? 'confirmed' : status === 'cancel' ? 'cancelled' : 'completed';
+      toast.success(`Appointment ${statusLabel}`);
       await loadAppointments();
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Action failed');
     } finally {
-      setActionId(null);
+      setActionKey(null);
     }
   };
 
   const startSession = async (id: string | number) => {
     try {
-      setActionId(id);
+      setActionKey(`${id}-start`);
       const { data } = await api.post(`/telemedicine/appointments/${id}/start`);
-      const joinUrl = data?.join_url || data?.session_url || data?.url;
+      const joinUrl = data?.meeting_link || data?.join_url || data?.session_url || data?.url;
       if (joinUrl) window.open(joinUrl, '_blank', 'noopener,noreferrer');
       toast.success('Telemedicine session started');
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Unable to start telemedicine session');
     } finally {
-      setActionId(null);
+      setActionKey(null);
     }
   };
 
@@ -98,6 +99,11 @@ export default function Appointments() {
         ) : filtered.map((appointment) => {
           const patientName = appointment.patient_name || appointment.patient?.full_name || 'Patient';
           const date = appointment.appointment_time ? parseISO(appointment.appointment_time) : null;
+          const currentStatus = String(appointment.status || 'pending').toLowerCase();
+          const canConfirm = currentStatus === 'pending';
+          const canStart = currentStatus === 'confirmed' || currentStatus === 'completed';
+          const canComplete = currentStatus === 'pending' || currentStatus === 'confirmed';
+          const canCancel = currentStatus !== 'cancelled' && currentStatus !== 'completed';
 
           return (
             <Card key={appointment.id}>
@@ -112,10 +118,37 @@ export default function Appointments() {
                 </div>
 
                 <div className="flex flex-col gap-2 sm:flex-row">
-                  <Button onClick={() => startSession(appointment.id)} loading={actionId === appointment.id}>Start Session</Button>
-                  <Button variant="outline" onClick={() => updateStatus(appointment.id, 'confirm')} loading={actionId === appointment.id}>Confirm</Button>
-                  <Button variant="secondary" onClick={() => updateStatus(appointment.id, 'complete')} loading={actionId === appointment.id}>Complete</Button>
-                  <Button variant="danger" onClick={() => updateStatus(appointment.id, 'cancel')} loading={actionId === appointment.id}>Cancel</Button>
+                  <Button
+                    onClick={() => startSession(appointment.id)}
+                    loading={actionKey === `${appointment.id}-start`}
+                    disabled={!canStart}
+                  >
+                    Start Session
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => updateStatus(appointment.id, 'confirm')}
+                    loading={actionKey === `${appointment.id}-confirm`}
+                    disabled={!canConfirm}
+                  >
+                    Confirm
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    onClick={() => updateStatus(appointment.id, 'complete')}
+                    loading={actionKey === `${appointment.id}-complete`}
+                    disabled={!canComplete}
+                  >
+                    Complete
+                  </Button>
+                  <Button
+                    variant="danger"
+                    onClick={() => updateStatus(appointment.id, 'cancel')}
+                    loading={actionKey === `${appointment.id}-cancel`}
+                    disabled={!canCancel}
+                  >
+                    Cancel
+                  </Button>
                 </div>
               </div>
             </Card>

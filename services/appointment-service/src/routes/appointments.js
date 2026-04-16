@@ -98,11 +98,18 @@ function canAccessAppointment(appointment, user) {
 
 router.get('/doctors', async (req, res) => {
   try {
-    const { specialty } = req.query;
+    const { specialty, available } = req.query;
     const { page, limit, offset } = parsePagination(req.query);
 
-    const filters = ['d.available = TRUE'];
+    const filters = [];
     const values = [];
+
+    if (typeof available === 'string') {
+      if (available === 'true' || available === 'false') {
+        values.push(available === 'true');
+        filters.push(`d.available = $${values.length}`);
+      }
+    }
 
     if (specialty) {
       values.push(`%${specialty}%`);
@@ -112,10 +119,10 @@ router.get('/doctors', async (req, res) => {
     values.push(limit, offset);
 
     const query = `
-      SELECT d.id, d.user_id, u.full_name, d.specialty, d.qualification, d.consultation_fee, d.rating
+      SELECT d.id, d.user_id, u.full_name, d.specialty, d.qualification, d.consultation_fee, d.rating, d.available
       FROM doctors d
       JOIN users u ON u.id = d.user_id
-      WHERE ${filters.join(' AND ')}
+      ${filters.length ? `WHERE ${filters.join(' AND ')}` : ''}
       ORDER BY d.rating DESC, d.id DESC
       LIMIT $${values.length - 1}
       OFFSET $${values.length}
