@@ -31,6 +31,14 @@ type Doctor = {
   experience?: number;
 };
 
+type AvailabilityWindow = {
+  id: string | number;
+  day_of_week?: number | string | null;
+  start_time?: string;
+  end_time?: string;
+  is_available?: boolean;
+};
+
 const specialties = ['All', 'Cardiology', 'Dermatology', 'General Medicine', 'Neurology', 'Pediatrics', 'Orthopedics', 'Psychiatry', 'Gynecology', 'ENT', 'Ophthalmology', 'Urology'];
 
 function unwrapDoctors(payload: any): Doctor[] {
@@ -40,6 +48,47 @@ function unwrapDoctors(payload: any): Doctor[] {
   if (Array.isArray(payload?.results)) return payload.results;
   if (Array.isArray(payload?.doctors)) return payload.doctors;
   return [];
+}
+
+function unwrapAvailability(payload: any): AvailabilityWindow[] {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.items)) return payload.items;
+  return [];
+}
+
+function normalizeDayOfWeek(value: AvailabilityWindow['day_of_week']): number | null {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+    const dayMap: Record<string, number> = {
+      sunday: 0,
+      monday: 1,
+      tuesday: 2,
+      wednesday: 3,
+      thursday: 4,
+      friday: 5,
+      saturday: 6,
+    };
+    return dayMap[value.toLowerCase()] ?? null;
+  }
+  return null;
+}
+
+function parseTimeToMinutes(timeValue?: string): number | null {
+  if (!timeValue) return null;
+  const [hourRaw, minuteRaw] = timeValue.split(':');
+  const hours = Number(hourRaw);
+  const minutes = Number(minuteRaw);
+  if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return null;
+  return hours * 60 + minutes;
+}
+
+function formatMinutesToTime(minutes: number): string {
+  const hours = String(Math.floor(minutes / 60)).padStart(2, '0');
+  const mins = String(minutes % 60).padStart(2, '0');
+  return `${hours}:${mins}`;
 }
 
 // Star Rating Component
@@ -105,7 +154,10 @@ export default function SearchDoctors() {
   
   // Booking states
   const [selectedDoctor, setSelectedDoctor] = useState<Doctor | null>(null);
-  const [appointmentTime, setAppointmentTime] = useState('');
+  const [availabilityWindows, setAvailabilityWindows] = useState<AvailabilityWindow[]>([]);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [selectedDate, setSelectedDate] = useState('');
+  const [selectedSlot, setSelectedSlot] = useState('');
   const [booking, setBooking] = useState(false);
 
   // Fetch all doctors on load (no filters applied)
@@ -194,23 +246,113 @@ export default function SearchDoctors() {
     setSortBy('rating');
   };
 
+  const openBookingModal = (doctor: Doctor) => {
+    setSelectedDoctor(doctor);
+    setSelectedDate('');
+    setSelectedSlot('');
+    setAvailabilityWindows([]);
+  };
+
+  useEffect(() => {
+    const loadAvailability = async () => {
+      if (!selectedDoctor) return;
+      try {
+        setAvailabilityLoading(true);
+        const { data } = await api.get(`/appointments/doctors/${selectedDoctor.id}/availability`);
+        setAvailabilityWindows(unwrapAvailability(data));
+      } catch (error: any) {
+        toast.error(error?.response?.data?.message || 'Unable to load doctor availability');
+      } finally {
+        setAvailabilityLoading(false);
+      }
+    };
+
+    loadAvailability();
+  }, [selectedDoctor]);
+
+  const availableDates = useMemo(() => {
+    if (!selectedDoctor || availabilityWindows.length === 0) return [] as Date[];
+    const availableDays = new Set(
+      availabilityWindows
+        .map((window) => normalizeDayOfWeek(window.day_of_week))
+        .filter((dayValue): dayValue is number => dayValue !== null)
+    );
+
+    const today = new Date();
+    const dates: Date[] = [];
+    for (let offset = 0; offset < 21; offset += 1) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + offset);
+      if (availableDays.has(date.getDay())) {
+        dates.push(date);
+      }
+    }
+
+    return dates;
+  }, [selectedDoctor, availabilityWindows]);
+
+  const slotsForSelectedDate = useMemo(() => {
+    if (!selectedDate) return [] as string[];
+    const date = new Date(`${selectedDate}T00:00:00`);
+    if (Number.isNaN(date.getTime())) return [] as string[];
+    const dayOfWeek = date.getDay();
+
+    const matchingWindows = availabilityWindows.filter((window) => normalizeDayOfWeek(window.day_of_week) === dayOfWeek);
+
+    const slotSet = new Set<string>();
+    matchingWindows.forEach((window) => {
+      const start = parseTimeToMinutes(window.start_time);
+      const end = parseTimeToMinutes(window.end_time);
+      if (start === null || end === null || end <= start) return;
+
+      for (let minute = start; minute < end; minute += 30) {
+        slotSet.add(formatMinutesToTime(minute));
+      }
+    });
+
+    const now = new Date();
+    const isToday = selectedDate === now.toISOString().slice(0, 10);
+
+    return Array.from(slotSet)
+      .sort()
+      .filter((time) => {
+        if (!isToday) return true;
+        const [hourRaw, minuteRaw] = time.split(':');
+        const slotDate = new Date(now);
+        slotDate.setHours(Number(hourRaw), Number(minuteRaw), 0, 0);
+        return slotDate.getTime() > now.getTime();
+      });
+  }, [selectedDate, availabilityWindows]);
+
   const handleBook = async () => {
     if (!selectedDoctor) return;
-    if (!appointmentTime) {
-      toast.error('Please select an appointment time');
+    if (!selectedDate || !selectedSlot) {
+      toast.error('Please select date and time slot');
       return;
     }
 
+    const appointmentTime = `${selectedDate}T${selectedSlot}:00`;
+
     try {
       setBooking(true);
-      await api.post('/appointments/', {
+      const { data: appointment } = await api.post('/appointments/', {
         doctor_id: selectedDoctor.id,
         appointment_time: appointmentTime,
       });
-      toast.success('Appointment booked successfully!');
-      setSelectedDoctor(null);
-      setAppointmentTime('');
+
+      const { data: paymentSession } = await api.post('/payments/create-checkout-session', {
+        appointment_id: appointment.id,
+      });
+
       fetchDoctors(); // Refresh to update availability
+
+      if (paymentSession?.checkout_url) {
+        toast.success('Redirecting to Stripe Checkout...');
+        window.location.href = paymentSession.checkout_url;
+        return;
+      }
+
+      throw new Error('Stripe checkout session was not created');
     } catch (error: any) {
       toast.error(error?.response?.data?.message || 'Failed to book appointment');
     } finally {
@@ -397,7 +539,7 @@ export default function SearchDoctors() {
                   </div>
 
                   <div className="flex w-full gap-3 lg:w-auto lg:flex-col lg:min-w-[220px]">
-                    <Button fullWidth onClick={() => setSelectedDoctor(doctor)}>
+                    <Button fullWidth onClick={() => openBookingModal(doctor)}>
                       Book Appointment
                     </Button>
                     <Button
@@ -439,24 +581,84 @@ export default function SearchDoctors() {
 
             <div className="mt-4 space-y-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">
-                  Select Date & Time
-                </label>
-                <input
-                  type="datetime-local"
-                  value={appointmentTime}
-                  onChange={(e) => setAppointmentTime(e.target.value)}
-                  min={new Date().toISOString().slice(0, 16)}
-                  className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-[#107393] focus:ring-2 focus:ring-[#107393]/20"
-                />
+                <label className="mb-2 block text-sm font-medium text-slate-700">Select Available Date</label>
+                {availabilityLoading ? (
+                  <p className="text-sm text-slate-500">Loading available dates...</p>
+                ) : availableDates.length === 0 ? (
+                  <p className="text-sm text-slate-500">No published availability for this doctor yet.</p>
+                ) : (
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {availableDates.map((date) => {
+                      const dateKey = date.toISOString().slice(0, 10);
+                      const isSelected = selectedDate === dateKey;
+
+                      return (
+                        <button
+                          key={dateKey}
+                          type="button"
+                          onClick={() => {
+                            setSelectedDate(dateKey);
+                            setSelectedSlot('');
+                          }}
+                          className={[
+                            'rounded-xl border px-3 py-2 text-left text-sm transition-all',
+                            isSelected
+                              ? 'border-[#107393] bg-[#107393]/10 text-[#107393]'
+                              : 'border-slate-200 text-slate-700 hover:border-[#107393]/40',
+                          ].join(' ')}
+                        >
+                          {format(date, 'EEE, MMM d')}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
+
+              {selectedDate && (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">Select Time Slot</label>
+                  {slotsForSelectedDate.length === 0 ? (
+                    <p className="text-sm text-slate-500">No slots available for this date.</p>
+                  ) : (
+                    <div className="grid gap-2 sm:grid-cols-3">
+                      {slotsForSelectedDate.map((slot) => {
+                        const isSelected = selectedSlot === slot;
+                        const slotDate = new Date(`${selectedDate}T${slot}:00`);
+
+                        return (
+                          <button
+                            key={slot}
+                            type="button"
+                            onClick={() => setSelectedSlot(slot)}
+                            className={[
+                              'rounded-xl border px-3 py-2 text-sm transition-all',
+                              isSelected
+                                ? 'border-[#107393] bg-[#107393]/10 text-[#107393]'
+                                : 'border-slate-200 text-slate-700 hover:border-[#107393]/40',
+                            ].join(' ')}
+                          >
+                            {format(slotDate, 'h:mm a')}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {selectedDate && selectedSlot && (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
+                  Selected appointment: {format(new Date(`${selectedDate}T${selectedSlot}:00`), 'PPPP')} at {format(new Date(`${selectedDate}T${selectedSlot}:00`), 'p')}
+                </div>
+              )}
 
               <div className="flex gap-3 pt-4">
                 <Button variant="outline" fullWidth onClick={() => setSelectedDoctor(null)}>
                   Cancel
                 </Button>
                 <Button fullWidth loading={booking} onClick={handleBook}>
-                  Confirm Booking
+                  Proceed to Payment
                 </Button>
               </div>
             </div>
