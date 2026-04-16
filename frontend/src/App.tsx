@@ -26,6 +26,7 @@ import Register from './pages/Register';
 import PatientDashboard from './pages/patient/Dashboard';
 import SearchDoctors from './pages/patient/SearchDoctors';
 import PatientAppointments from './pages/patient/Appointments';
+import AppointmentSummary from './pages/patient/AppointmentSummary';
 import PatientProfile from './pages/patient/Profile';
 import SymptomChecker from './pages/patient/SymptomChecker';
 import DoctorDashboard from './pages/doctor/Dashboard';
@@ -386,6 +387,7 @@ export default function App() {
           <Route path="/register" element={<Register />} />
 
           <Route element={<ProtectedRoute allowedRoles={['patient']} />}>
+            <Route path="/patient/appointments/:id" element={<AppointmentSummary />} />
             <Route path="/patient" element={<Layout />}>
               <Route index element={<PatientDashboard />} />
               <Route path="search" element={<SearchDoctors />} />

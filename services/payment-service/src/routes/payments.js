@@ -5,6 +5,23 @@ const { stripe } = require('../stripe');
 
 const router = express.Router();
 
+function resolveFrontendBaseUrl(frontendBaseUrlRaw) {
+  const candidate = typeof frontendBaseUrlRaw === 'string' ? frontendBaseUrlRaw.trim() : '';
+  if (!candidate) {
+    return (process.env.FRONTEND_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+  }
+
+  try {
+    const parsed = new URL(candidate);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error('Invalid protocol');
+    }
+    return `${parsed.protocol}//${parsed.host}`;
+  } catch (_error) {
+    return (process.env.FRONTEND_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+  }
+}
+
 router.post('/create-intent', verifyToken, requireRole('patient'), async (req, res) => {
   try {
     if (!stripe) {
@@ -119,7 +136,7 @@ router.post('/create-checkout-session', verifyToken, requireRole('patient'), asy
 
     const currency = (process.env.STRIPE_CURRENCY || 'usd').toLowerCase();
     const amount = Math.round(Number(appointment.consultation_fee) * 100);
-    const frontendBaseUrl = (process.env.FRONTEND_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const frontendBaseUrl = resolveFrontendBaseUrl(req.body.frontend_base_url || req.headers.origin);
 
     const session = await stripe.checkout.sessions.create({
       mode: 'payment',
@@ -142,7 +159,7 @@ router.post('/create-checkout-session', verifyToken, requireRole('patient'), asy
         patient_id: String(appointment.patient_id),
         doctor_id: String(appointment.doctor_id),
       },
-      success_url: `${frontendBaseUrl}/patient/appointments?payment=success&session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${frontendBaseUrl}/patient/appointments?payment=success&session_id={CHECKOUT_SESSION_ID}&appointment_id=${appointment.id}`,
       cancel_url: `${frontendBaseUrl}/patient/search?payment=cancelled&appointment_id=${appointment.id}`,
     });
 

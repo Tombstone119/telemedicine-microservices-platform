@@ -11,6 +11,8 @@ type Appointment = {
   doctor?: { full_name?: string };
   appointment_time?: string;
   status?: string;
+  payment_status?: string;
+  consultation_fee?: number;
   specialty?: string;
   notes?: string;
   telemedicine_session_url?: string;
@@ -88,6 +90,8 @@ export default function Appointments() {
       setActionId(null);
     }
   };
+
+
 
   return (
     <div className="space-y-6">

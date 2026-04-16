@@ -342,6 +342,7 @@ export default function SearchDoctors() {
 
       const { data: paymentSession } = await api.post('/payments/create-checkout-session', {
         appointment_id: appointment.id,
+        frontend_base_url: window.location.origin,
       });
 
       fetchDoctors(); // Refresh to update availability
