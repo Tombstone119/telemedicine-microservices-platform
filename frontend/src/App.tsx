@@ -34,7 +34,7 @@ import DoctorAppointments from './pages/doctor/Appointments';
 import DoctorAvailability from './pages/doctor/Availability';
 import DoctorProfile from './pages/doctor/Profile';
 import AdminDashboard from './pages/admin/Dashboard';
-import AdminUsers from './pages/admin/Users';
+import AdminUsers from './pages/admin/AdminUsers';
 import AdminDoctors from './pages/admin/Doctors';
 import AdminProfile from './pages/admin/Profile';
 

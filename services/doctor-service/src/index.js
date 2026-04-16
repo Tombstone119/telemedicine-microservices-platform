@@ -7,6 +7,7 @@ const profileRouter = require('./routes/profile');
 const availabilityRouter = require('./routes/availability');
 const appointmentsRouter = require('./routes/appointments');
 const prescriptionsRouter = require('./routes/prescriptions');
+const adminRouter = require('./routes/admin');
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.get('/health', (req, res) => {
   });
 });
 
+app.use('/api/doctors', adminRouter);
 app.use('/api/doctors', profileRouter);
 app.use('/api/doctors', availabilityRouter);
 app.use('/api/doctors', appointmentsRouter);

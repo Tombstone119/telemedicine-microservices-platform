@@ -30,7 +30,26 @@ async function initDB() {
     await pool.query('ALTER TABLE doctors ADD COLUMN IF NOT EXISTS consultation_fee NUMERIC;');
     await pool.query('ALTER TABLE doctors ADD COLUMN IF NOT EXISTS rating NUMERIC DEFAULT 0;');
     await pool.query('ALTER TABLE doctors ADD COLUMN IF NOT EXISTS available BOOLEAN DEFAULT TRUE;');
+    await pool.query("ALTER TABLE doctors ADD COLUMN IF NOT EXISTS approval_status TEXT DEFAULT 'pending';");
+    await pool.query('ALTER TABLE doctors ADD COLUMN IF NOT EXISTS verification_notes TEXT;');
+    await pool.query("ALTER TABLE doctors ADD COLUMN IF NOT EXISTS verification_documents JSONB DEFAULT '[]'::jsonb;");
+    await pool.query('ALTER TABLE doctors ADD COLUMN IF NOT EXISTS reviewed_by INTEGER;');
+    await pool.query('ALTER TABLE doctors ADD COLUMN IF NOT EXISTS reviewed_at TIMESTAMPTZ;');
     await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS doctors_user_id_key ON doctors(user_id);');
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF NOT EXISTS (
+          SELECT 1
+          FROM pg_constraint
+          WHERE conname = 'doctors_approval_status_check'
+        ) THEN
+          ALTER TABLE doctors
+          ADD CONSTRAINT doctors_approval_status_check
+          CHECK (approval_status IN ('pending', 'approved', 'rejected'));
+        END IF;
+      END $$;
+    `);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS availability (
