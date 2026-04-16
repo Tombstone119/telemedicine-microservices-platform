@@ -7,7 +7,7 @@ const router = express.Router();
 async function ensureDoctorRow(user) {
   const existing = await pool.query(
     `
-      SELECT id
+      SELECT id, approval_status
       FROM doctors
       WHERE user_id = $1
       LIMIT 1
@@ -16,16 +16,23 @@ async function ensureDoctorRow(user) {
   );
 
   if (existing.rows.length > 0) {
+    if ((existing.rows[0].approval_status || 'pending') !== 'approved') {
+      const error = new Error('Doctor profile is pending admin approval');
+      error.statusCode = 403;
+      throw error;
+    }
+
     return existing.rows[0].id;
   }
 
   const inserted = await pool.query(
     `
-      INSERT INTO doctors (user_id, available)
-      VALUES ($1, TRUE)
+      INSERT INTO doctors (user_id, available, approval_status)
+      VALUES ($1, FALSE, 'pending')
       ON CONFLICT (user_id)
       DO UPDATE SET
-        available = TRUE
+        available = FALSE,
+        approval_status = COALESCE(doctors.approval_status, 'pending')
       RETURNING id
     `,
     [user.id]
@@ -68,6 +75,9 @@ router.get('/availability', verifyToken, requireRole('doctor'), async (req, res)
 
     return res.json(result.rows);
   } catch (error) {
+    if (error.statusCode === 403) {
+      return res.status(403).json({ error: error.message });
+    }
     console.error('[DoctorService] GET /availability error:', error);
     return res.status(500).json({ error: 'Server error' });
   }
@@ -107,6 +117,9 @@ router.post('/availability', verifyToken, requireRole('doctor'), async (req, res
 
     return res.status(201).json(result.rows[0]);
   } catch (error) {
+    if (error.statusCode === 403) {
+      return res.status(403).json({ error: error.message });
+    }
     console.error('[DoctorService] POST /availability error:', error);
     return res.status(500).json({ error: 'Server error' });
   }
@@ -150,6 +163,9 @@ router.put('/availability', verifyToken, requireRole('doctor'), async (req, res)
 
     return res.json(result.rows[0]);
   } catch (error) {
+    if (error.statusCode === 403) {
+      return res.status(403).json({ error: error.message });
+    }
     console.error('[DoctorService] PUT /availability error:', error);
     return res.status(500).json({ error: 'Server error' });
   }

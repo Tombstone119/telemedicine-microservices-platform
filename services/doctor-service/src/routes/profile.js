@@ -31,22 +31,53 @@ router.get('/profile', async (req, res) => {
 // Create or update doctor profile
 router.put('/profile', async (req, res) => {
   try {
-    const { specialty, qualification, consultation_fee } = req.body;
+    const {
+      specialty,
+      qualification,
+      consultation_fee,
+      phone,
+      experience,
+      license_number,
+      bio,
+    } = req.body;
     
     // Check if profile exists
     const result = await pool.query(
       `
-        INSERT INTO doctors (user_id, specialty, qualification, consultation_fee, available)
-        VALUES ($1, $2, $3, $4, TRUE)
+        INSERT INTO doctors (
+          user_id,
+          specialty,
+          qualification,
+          consultation_fee,
+          phone,
+          experience,
+          license_number,
+          bio,
+          available,
+          approval_status
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, FALSE, 'pending')
         ON CONFLICT (user_id)
         DO UPDATE SET
           specialty = COALESCE(EXCLUDED.specialty, doctors.specialty),
           qualification = COALESCE(EXCLUDED.qualification, doctors.qualification),
           consultation_fee = COALESCE(EXCLUDED.consultation_fee, doctors.consultation_fee),
-          available = TRUE
+          phone = COALESCE(EXCLUDED.phone, doctors.phone),
+          experience = COALESCE(EXCLUDED.experience, doctors.experience),
+          license_number = COALESCE(EXCLUDED.license_number, doctors.license_number),
+          bio = COALESCE(EXCLUDED.bio, doctors.bio)
         RETURNING *
       `,
-      [req.user.id, specialty || null, qualification || null, consultation_fee || null]
+      [
+        req.user.id,
+        specialty || null,
+        qualification || null,
+        consultation_fee || null,
+        phone || null,
+        experience || null,
+        license_number || null,
+        bio || null,
+      ]
     );
 
     res.json(result.rows[0]);

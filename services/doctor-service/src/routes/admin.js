@@ -89,6 +89,7 @@ router.patch('/admin/:id/verification', async (req, res) => {
         UPDATE doctors
         SET approval_status = $1,
             verification_notes = NULLIF($2, ''),
+            available = CASE WHEN $1 = 'approved' THEN TRUE ELSE FALSE END,
             reviewed_by = $3,
             reviewed_at = NOW()
         WHERE id = $4

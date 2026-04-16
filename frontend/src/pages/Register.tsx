@@ -8,7 +8,7 @@ import Button from '../components/UI/Button';
 export default function Register() {
   const navigate = useNavigate();
   const { register, isAuthenticated, user, loading } = useAuth();
-  const [form, setForm] = useState({ full_name: '', email: '', password: '', role: 'patient' as 'patient' | 'doctor' });
+  const [form, setForm] = useState({ full_name: '', email: '', password: '' });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
 
@@ -33,7 +33,7 @@ export default function Register() {
     if (!validate()) return;
     try {
       setSubmitting(true);
-      await register(form);
+      await register({ ...form, role: 'patient' });
       toast.success('Account created successfully');
       navigate('/login', { replace: true });
     } catch (error: any) {
@@ -70,27 +70,8 @@ export default function Register() {
             {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
           </div>
 
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-700">Role</label>
-            <div className="grid grid-cols-2 gap-3">
-              {(['patient', 'doctor'] as const).map((role) => (
-                <button
-                  key={role}
-                  type="button"
-                  onClick={() => setForm({ ...form, role })}
-                  className={[
-                    'rounded-xl border px-4 py-3 text-sm font-semibold transition-all duration-200',
-                    form.role === role ? 'border-[#107393] bg-[#107393] text-white shadow-lg shadow-[#107393]/20' : 'border-slate-200 bg-white text-slate-700 hover:border-[#107393]/20 hover:text-[#107393]',
-                  ].join(' ')}
-                >
-                  {role === 'patient' ? 'Patient' : 'Doctor'}
-                </button>
-              ))}
-            </div>
-          </div>
-
           <Button type="submit" loading={submitting} fullWidth>
-            Create account
+            Create patient account
           </Button>
         </form>
 

@@ -33,6 +33,7 @@ import DoctorDashboard from './pages/doctor/Dashboard';
 import DoctorAppointments from './pages/doctor/Appointments';
 import DoctorAvailability from './pages/doctor/Availability';
 import DoctorProfile from './pages/doctor/Profile';
+import DoctorApplication from './pages/DoctorApplication';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/AdminUsers';
 import AdminDoctors from './pages/admin/Doctors';
@@ -356,11 +357,21 @@ function LandingPage() {
             <div>
               <h3>About</h3>
               <div className="footer-policy-links">
-                {['For Patients', 'For Doctors', 'For Partners', 'Support'].map((item) => (
-                  <a key={item} href="/login">
-                    {item}
-                  </a>
-                ))}
+                {['For Patients', 'For Doctors', 'For Partners', 'Support'].map((item) => {
+                  if (item === 'For Doctors') {
+                    return (
+                      <Link key={item} to="/doctor/register">
+                        Join With Us As a Doctor
+                      </Link>
+                    );
+                  }
+
+                  return (
+                    <a key={item} href="/login">
+                      {item}
+                    </a>
+                  );
+                })}
               </div>
             </div>
           </div>
@@ -385,6 +396,7 @@ export default function App() {
           <Route path="/" element={<LandingPage />} />
           <Route path="/login" element={<Login />} />
           <Route path="/register" element={<Register />} />
+          <Route path="/doctor/register" element={<DoctorApplication />} />
 
           <Route element={<ProtectedRoute allowedRoles={['patient']} />}>
             <Route path="/patient/appointments/:id" element={<AppointmentSummary />} />
