@@ -1,14 +1,58 @@
-const express = require('express');
-const cors = require('cors');
 require('dotenv').config();
 
+const cors = require('cors');
+const express = require('express');
+const { initDB } = require('./db');
+const { connectRabbit, closeRabbit } = require('./rabbitmq');
+const paymentsRouter = require('./routes/payments');
+const webhookRouter = require('./routes/webhook');
+
 const app = express();
-app.use(express.json());
+
 app.use(cors());
 
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', service: 'payment-service' });
+  res.json({
+    status: 'ok',
+    service: 'payment-service',
+    timestamp: new Date().toISOString(),
+  });
+});
+
+app.use('/api/payments/webhook/stripe', express.raw({ type: 'application/json' }), webhookRouter);
+
+app.use(express.json());
+app.use('/api/payments', paymentsRouter);
+
+app.use((err, req, res, next) => {
+  console.error('[PaymentService] Unhandled error:', err);
+  return res.status(500).json({ error: 'Server error' });
 });
 
 const PORT = process.env.PORT || 3005;
-app.listen(PORT, () => console.log(`payment-service running on port ${PORT}`));
+
+async function startServer() {
+  try {
+    await initDB();
+    await connectRabbit();
+
+    app.listen(PORT, () => {
+      console.log(`Payment service running on port ${PORT}`);
+    });
+  } catch (error) {
+    console.error('[PaymentService] Startup failed:', error);
+    process.exit(1);
+  }
+}
+
+process.on('SIGINT', async () => {
+  await closeRabbit();
+  process.exit(0);
+});
+
+process.on('SIGTERM', async () => {
+  await closeRabbit();
+  process.exit(0);
+});
+
+startServer();

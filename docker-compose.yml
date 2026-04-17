@@ -1,12 +1,10 @@
-version: '3.8'
-
 services:
   gateway:
     image: nginx:alpine
     ports:
       - "80:80"
     volumes:
-      - ./gateway/nginx.conf:/etc/nginx/nginx.conf
+      - ./gateway/nginx.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - auth-service
       - patient-service
@@ -15,6 +13,7 @@ services:
       - telemedicine-service
       - payment-service
       - notification-service
+      - ai-symptom-service
 
   auth-service:
     build: ./services/auth-service
@@ -26,7 +25,9 @@ services:
       - redis
 
   patient-service:
-    build: ./services/patient-service
+    build:
+      context: .
+      dockerfile: services/patient-service/Dockerfile
     env_file: ./services/patient-service/.env
     ports:
       - "3001:3001"
@@ -35,7 +36,9 @@ services:
       - mongo
 
   doctor-service:
-    build: ./services/doctor-service
+    build:
+      context: .
+      dockerfile: services/doctor-service/Dockerfile
     env_file: ./services/doctor-service/.env
     ports:
       - "3002:3002"
@@ -43,7 +46,9 @@ services:
       - postgres
 
   appointment-service:
-    build: ./services/appointment-service
+    build:
+      context: .
+      dockerfile: services/appointment-service/Dockerfile
     env_file: ./services/appointment-service/.env
     ports:
       - "3003:3003"
@@ -52,13 +57,19 @@ services:
       - rabbitmq
 
   telemedicine-service:
-    build: ./services/telemedicine-service
+    build:
+      context: .
+      dockerfile: services/telemedicine-service/Dockerfile
     env_file: ./services/telemedicine-service/.env
     ports:
       - "3004:3004"
+    depends_on:
+      - postgres
 
   payment-service:
-    build: ./services/payment-service
+    build:
+      context: .
+      dockerfile: services/payment-service/Dockerfile
     env_file: ./services/payment-service/.env
     ports:
       - "3005:3005"
@@ -67,17 +78,97 @@ services:
       - rabbitmq
 
   notification-service:
-    build: ./services/notification-service
+    build:
+      context: .
+      dockerfile: services/notification-service/Dockerfile
     env_file: ./services/notification-service/.env
     ports:
       - "3006:3006"
     depends_on:
       - rabbitmq
 
-  frontend:
-    build: ./frontend
+  ai-symptom-service:
+    build:
+      context: .
+      dockerfile: services/ai-symptom-service/Dockerfile
+    env_file: ./services/ai-symptom-service/.env
     ports:
-      - "5173:5173"
+      - "3007:3007"
+    depends_on:
+      - postgres
+      - ollama
+      - whisper
+      - tts
+      - livekit
+
+  # ========== AI MODEL SERVICES ==========
+  
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    command: serve
+    deploy:
+      resources:
+        limits:
+          memory: 8G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  whisper:
+    image: hwdsl2/whisper-server:latest
+    ports:
+      - "9001:9000"
+    environment:
+      - WHISPER_MODEL=base
+      - WHISPER_LANGUAGE=en
+    volumes:
+      - whisper_data:/var/lib/whisper
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  tts:
+    build:
+      context: .
+      dockerfile: services/tts-service/Dockerfile
+    ports:
+      - "5002:5002"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5002/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  livekit:
+    image: livekit/livekit-server:latest
+    ports:
+      - "7880:7880"   # WebSocket for WebRTC
+      - "7881:7881"   # HTTP API
+    environment:
+      - LIVEKIT_API_KEY=telemedicine_key
+      - LIVEKIT_API_SECRET=telemedicine_secret
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7881/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # frontend:
+  #   build: ./frontend
+  #   ports:
+  #     - "5173:5173"
 
   postgres:
     image: postgres:15-alpine
@@ -89,6 +180,11 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD", "pg_isready", "-U", "admin"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   mongo:
     image: mongo:7
@@ -96,18 +192,35 @@ services:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
   redis:
     image: redis:7-alpine
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
     ports:
       - "5672:5672"
-      - "15672:15672"    # management UI at http://localhost:15672
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
 
 volumes:
   postgres_data:
   mongo_data:
+  ollama_data:
+  whisper_data:

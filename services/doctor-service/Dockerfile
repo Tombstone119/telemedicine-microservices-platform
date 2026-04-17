@@ -1,7 +1,8 @@
 FROM node:20-alpine
 WORKDIR /app
-COPY package*.json ./
+COPY services/doctor-service/package*.json ./
 RUN npm install
-COPY . .
+COPY services/doctor-service/. .
+COPY shared /shared
 EXPOSE 3002
 CMD ["node", "src/index.js"]
