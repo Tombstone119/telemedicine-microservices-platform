@@ -1,0 +1,150 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-symptom-service
+  namespace: telemedicine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-symptom-service
+  template:
+    metadata:
+      labels:
+        app: ai-symptom-service
+    spec:
+      initContainers:
+        - name: wait-for-whisper
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z whisper 9000; do echo waiting for whisper; sleep 5; done"]
+        - name: wait-for-tts
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z tts 5002; do echo waiting for tts; sleep 5; done"]
+        - name: wait-for-ollama
+          image: busybox:1.36
+          command: ["sh", "-c", "until nc -z ollama 11434; do echo waiting for ollama; sleep 5; done"]
+      containers:
+        - name: ai-symptom-service
+          image: telemedicine-microservices-platform-ai-symptom-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3007
+          env:
+            - name: PORT
+              value: "3007"
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: telemedicine-secrets
+                  key: JWT_SECRET
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: DB_HOST
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: DB_PORT
+            - name: DB_USER
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: telemedicine-secrets
+                  key: DB_PASSWORD
+            - name: DB_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: DB_NAME
+            - name: OLLAMA_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: OLLAMA_BASE_URL
+            - name: OLLAMA_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: OLLAMA_MODEL
+            - name: WHISPER_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: WHISPER_BASE_URL
+            - name: TTS_BASE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: TTS_BASE_URL
+            - name: TTS_MODEL
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: TTS_MODEL
+            - name: TTS_VOICE
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: TTS_VOICE
+            - name: TTS_AUDIO_FORMAT
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: TTS_AUDIO_FORMAT
+            - name: LIVEKIT_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: LIVEKIT_URL
+            - name: LIVEKIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: telemedicine-secrets
+                  key: LIVEKIT_API_KEY
+            - name: LIVEKIT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: telemedicine-secrets
+                  key: LIVEKIT_API_SECRET
+            - name: LIVEKIT_TOKEN_TTL_SECONDS
+              valueFrom:
+                configMapKeyRef:
+                  name: telemedicine-config
+                  key: LIVEKIT_TOKEN_TTL_SECONDS
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3007
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3007
+            initialDelaySeconds: 60
+            periodSeconds: 15
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "200m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ai-symptom-service
+  namespace: telemedicine
+spec:
+  selector:
+    app: ai-symptom-service
+  ports:
+    - port: 3007
+      targetPort: 3007

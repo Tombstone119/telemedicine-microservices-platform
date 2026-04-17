@@ -1,0 +1,77 @@
+# Whisper speech-to-text — requires ~2GB RAM for the 'base' model.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: whisper-pvc
+  namespace: telemedicine
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: whisper
+  namespace: telemedicine
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: whisper
+  template:
+    metadata:
+      labels:
+        app: whisper
+    spec:
+      containers:
+        - name: whisper
+          image: hwdsl2/whisper-server:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 9000
+          env:
+            - name: WHISPER_MODEL
+              value: "base"
+            - name: WHISPER_LANGUAGE
+              value: "en"
+          volumeMounts:
+            - name: whisper-storage
+              mountPath: /var/lib/whisper
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 9000
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            failureThreshold: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 9000
+            initialDelaySeconds: 60
+            periodSeconds: 20
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+      volumes:
+        - name: whisper-storage
+          persistentVolumeClaim:
+            claimName: whisper-pvc
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: whisper
+  namespace: telemedicine
+spec:
+  selector:
+    app: whisper
+  ports:
+    - port: 9000
+      targetPort: 9000

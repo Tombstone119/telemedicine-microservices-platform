@@ -1,0 +1,62 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: telemedicine-config
+  namespace: telemedicine
+data:
+  # Database
+  DB_HOST: "postgres"
+  DB_PORT: "5432"
+  DB_USER: "admin"
+  DB_NAME: "healthcare"
+  POSTGRES_USER: "admin"
+  POSTGRES_DB: "healthcare"
+
+  # Redis
+  REDIS_URL: "redis://redis:6379"
+
+  # RabbitMQ
+  RABBITMQ_URL: "amqp://guest:guest@rabbitmq:5672"
+  RABBITMQ_EXCHANGE: "appointment.events"
+  RABBITMQ_QUEUE: "notification.service.queue"
+
+  # JWT
+  JWT_EXPIRES_IN: "24h"
+
+  # Service ports
+  AUTH_PORT: "3000"
+  PATIENT_PORT: "3001"
+  DOCTOR_PORT: "3002"
+  APPOINTMENT_PORT: "3003"
+  TELEMEDICINE_PORT: "3004"
+  PAYMENT_PORT: "3005"
+  NOTIFICATION_PORT: "3006"
+  AI_SYMPTOM_PORT: "3007"
+
+  # AI services
+  OLLAMA_BASE_URL: "http://ollama:11434"
+  OLLAMA_MODEL: "llama3.2:3b"
+  WHISPER_BASE_URL: "http://whisper:9000"
+  TTS_BASE_URL: "http://tts:5002"
+  TTS_MODEL: "kokoro"
+  TTS_VOICE: "af_sarah"
+  TTS_AUDIO_FORMAT: "mp3"
+  LIVEKIT_URL: "ws://livekit:7880"
+  LIVEKIT_TOKEN_TTL_SECONDS: "3600"
+
+  # Telemedicine
+  MEETING_BASE_URL: "https://meet.jit.si"
+  MEETING_ROOM_PREFIX: "telemedicine"
+  SESSION_JOIN_GRACE_MINUTES: "15"
+
+  # Notifications
+  NOTIFICATION_MODE: "live"
+  SENDGRID_FROM_EMAIL: "kodagodayohan@gmail.com"
+
+  # Payment
+  STRIPE_CURRENCY: "usd"
+  FRONTEND_BASE_URL: "http://localhost"
+
+  # Rate limiting
+  RATE_LIMIT_WINDOW_MS: "60000"
+  RATE_LIMIT_MAX_REQUESTS: "120"

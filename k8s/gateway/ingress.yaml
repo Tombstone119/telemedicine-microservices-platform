@@ -1,0 +1,74 @@
+# Alternative to the NodePort gateway — use this with an NGINX Ingress Controller
+# in a cloud cluster (GKE, EKS, AKS).
+# Install ingress-nginx first: https://kubernetes.github.io/ingress-nginx/deploy/
+# Then replace the host value with your domain or cluster IP.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: telemedicine-ingress
+  namespace: telemedicine
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/use-regex: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: telemedicine.local
+      http:
+        paths:
+          - path: /api/auth(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: auth-service
+                port:
+                  number: 3000
+          - path: /api/patients(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: patient-service
+                port:
+                  number: 3001
+          - path: /api/doctors(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: doctor-service
+                port:
+                  number: 3002
+          - path: /api/appointments(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: appointment-service
+                port:
+                  number: 3003
+          - path: /api/telemedicine(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: telemedicine-service
+                port:
+                  number: 3004
+          - path: /api/payments(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: payment-service
+                port:
+                  number: 3005
+          - path: /api/notifications(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: notification-service
+                port:
+                  number: 3006
+          - path: /api/ai-symptom(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: ai-symptom-service
+                port:
+                  number: 3007
