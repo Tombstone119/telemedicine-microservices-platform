@@ -7,7 +7,7 @@ const validStatuses = new Set(['pending', 'approved', 'rejected']);
 router.use(verifyToken);
 router.use(requireRole('admin'));
 
-router.get('/admin', async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const queryText = typeof req.query.query === 'string' ? req.query.query.trim() : '';
     const status = typeof req.query.status === 'string' ? req.query.status.trim() : '';
@@ -70,7 +70,7 @@ router.get('/admin', async (req, res) => {
   }
 });
 
-router.patch('/admin/:id/verification', async (req, res) => {
+router.patch('/:id/verification', async (req, res) => {
   try {
     const doctorId = Number(req.params.id);
     const status = typeof req.body.status === 'string' ? req.body.status.trim() : '';
@@ -109,7 +109,7 @@ router.patch('/admin/:id/verification', async (req, res) => {
   }
 });
 
-router.patch('/admin/:id/documents', async (req, res) => {
+router.patch('/:id/documents', async (req, res) => {
   try {
     const doctorId = Number(req.params.id);
     const documents = Array.isArray(req.body.documents) ? req.body.documents : null;

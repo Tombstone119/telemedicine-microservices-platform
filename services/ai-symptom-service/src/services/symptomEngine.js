@@ -1,4 +1,4 @@
-const ollamaClient = require('../clients/ollamaClient');
+const ollamaClient = require('../clients/claudeClient');
 
 const SPECIALTY_KEYWORDS = [
   { specialty: 'cardiology', keywords: ['chest pain', 'palpitations', 'shortness of breath', 'heart'] },

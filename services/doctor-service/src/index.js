@@ -22,7 +22,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.use('/api/doctors', adminRouter);
+app.use('/api/doctors/admin', adminRouter);
 app.use('/api/doctors', profileRouter);
 app.use('/api/doctors', availabilityRouter);
 app.use('/api/doctors', appointmentsRouter);

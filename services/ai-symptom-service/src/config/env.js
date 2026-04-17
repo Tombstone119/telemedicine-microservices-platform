@@ -18,14 +18,14 @@ module.exports = {
   rateLimitWindowMs: toNumber(process.env.RATE_LIMIT_WINDOW_MS, 60 * 1000),
   rateLimitMaxRequests: toNumber(process.env.RATE_LIMIT_MAX_REQUESTS, 120),
 
-  ollama: {
-    baseUrl: process.env.OLLAMA_BASE_URL || 'http://ollama:11434',
-    model: process.env.OLLAMA_MODEL || 'llama3.2:3b',
-    timeoutMs: toNumber(process.env.OLLAMA_TIMEOUT_MS, 25000),
+  claude: {
+    apiKey: process.env.ANTHROPIC_API_KEY || '',
+    model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
+    maxTokens: toNumber(process.env.CLAUDE_MAX_TOKENS, 1024),
   },
 
   whisper: {
-    baseUrl: process.env.WHISPER_BASE_URL || 'http://whisper:9001',
+    baseUrl: process.env.WHISPER_BASE_URL || 'http://whisper:9000',
     timeoutMs: toNumber(process.env.WHISPER_TIMEOUT_MS, 30000),
   },
 

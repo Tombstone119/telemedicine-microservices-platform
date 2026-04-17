@@ -13,13 +13,6 @@ async function initDB() {
     await pool.query('CREATE EXTENSION IF NOT EXISTS pgcrypto;');
 
     await pool.query(`
-      DROP TABLE IF EXISTS prescriptions CASCADE;
-      DROP TABLE IF EXISTS medical_reports CASCADE;
-      DROP TABLE IF EXISTS medical_history CASCADE;
-      DROP TABLE IF EXISTS patients CASCADE;
-    `);
-
-    await pool.query(`
       CREATE TABLE IF NOT EXISTS patients (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id INTEGER UNIQUE NOT NULL,

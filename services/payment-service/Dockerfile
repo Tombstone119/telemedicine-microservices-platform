@@ -1,5 +1,6 @@
 FROM node:20-alpine
 WORKDIR /app
+ENV NODE_PATH=/app/node_modules
 COPY services/payment-service/package*.json ./
 RUN npm install
 COPY services/payment-service/. .

@@ -49,7 +49,7 @@ router.post('/session-token', asyncHandler(async (req, res) => {
 
   const identity = participantName || `user-${req.user.id}`;
 
-  const session = createRoomToken(identity, roomName, {
+  const session = await createRoomToken(identity, roomName, {
     role: req.user.role,
     userId: req.user.id,
   });

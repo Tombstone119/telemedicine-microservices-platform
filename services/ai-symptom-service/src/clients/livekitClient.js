@@ -2,7 +2,7 @@ const { AccessToken } = require('livekit-server-sdk');
 const env = require('../config/env');
 const { ApiError } = require('../utils/errors');
 
-function createRoomToken(identity, roomName, metadata = {}) {
+async function createRoomToken(identity, roomName, metadata = {}) {
   if (!env.livekit.apiKey || !env.livekit.apiSecret) {
     throw new ApiError(500, 'LiveKit credentials are not configured');
   }
@@ -22,7 +22,7 @@ function createRoomToken(identity, roomName, metadata = {}) {
 
   return {
     url: env.livekit.url,
-    token: token.toJwt(),
+    token: await token.toJwt(),
   };
 }
 
