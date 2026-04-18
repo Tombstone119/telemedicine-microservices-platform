@@ -4,8 +4,7 @@ const { pool } = require('../db');
 
 const validStatuses = new Set(['pending', 'approved', 'rejected']);
 
-router.use(verifyToken);
-router.use(requireRole('admin'));
+router.use('/admin', verifyToken, requireRole('admin'));
 
 router.get('/admin', async (req, res) => {
   try {

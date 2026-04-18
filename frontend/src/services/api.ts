@@ -12,7 +12,20 @@ api.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const token = localStorage.getItem(authStorageKeys.token);
   if (token) {
     config.headers = config.headers ?? {};
-    config.headers.Authorization = `Bearer ${token}`;
+
+    const hasExplicitAuthorization =
+      (typeof (config.headers as any).get === 'function' &&
+        Boolean((config.headers as any).get('Authorization'))) ||
+      Boolean((config.headers as any).Authorization) ||
+      Boolean((config.headers as any).authorization);
+
+    if (!hasExplicitAuthorization) {
+      if (typeof (config.headers as any).set === 'function') {
+        (config.headers as any).set('Authorization', `Bearer ${token}`);
+      } else {
+        (config.headers as any).Authorization = `Bearer ${token}`;
+      }
+    }
   }
   return config;
 });

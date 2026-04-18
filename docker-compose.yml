@@ -66,6 +66,94 @@ services:
     depends_on:
       - postgres
 
+  jitsi-web:
+    image: jitsi/web:stable
+    ports:
+      - "8000:80"
+      - "8443:443"
+    environment:
+      - ENABLE_AUTH=1
+      - ENABLE_GUESTS=1
+      - AUTH_TYPE=internal
+      - PUBLIC_URL=http://localhost:8000
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - XMPP_BOSH_URL_BASE=http://jitsi-prosody:5280
+      - JICOFO_AUTH_USER=focus
+      - JVB_AUTH_USER=jvb
+      - JVB_BREWERY_MUC=jvbbrewery
+      - JIBRI_BREWERY_MUC=jibribrewery
+      - JIGASI_BREWERY_MUC=jigasibrewery
+    depends_on:
+      - jitsi-prosody
+      - jitsi-jicofo
+      - jitsi-jvb
+    volumes:
+      - jitsi_web_config:/config
+
+  jitsi-prosody:
+    image: jitsi/prosody:stable
+    expose:
+      - "5222"
+      - "5280"
+      - "5347"
+    environment:
+      - ENABLE_AUTH=1
+      - ENABLE_GUESTS=1
+      - AUTH_TYPE=internal
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_MUC_DOMAIN=muc.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - JICOFO_COMPONENT_SECRET=jicofo_component_secret
+      - JICOFO_AUTH_USER=focus
+      - JICOFO_AUTH_PASSWORD=focus_password
+      - JVB_AUTH_USER=jvb
+      - JVB_AUTH_PASSWORD=jvb_password
+    volumes:
+      - jitsi_prosody_config:/config
+      - jitsi_prosody_plugins:/prosody-plugins-custom
+
+  jitsi-jicofo:
+    image: jitsi/jicofo:stable
+    depends_on:
+      - jitsi-prosody
+    environment:
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - XMPP_SERVER=jitsi-prosody
+      - JICOFO_COMPONENT_SECRET=jicofo_component_secret
+      - JICOFO_AUTH_USER=focus
+      - JICOFO_AUTH_PASSWORD=focus_password
+      - JVB_BREWERY_MUC=jvbbrewery
+    volumes:
+      - jitsi_jicofo_config:/config
+
+  jitsi-jvb:
+    image: jitsi/jvb:stable
+    depends_on:
+      - jitsi-prosody
+    ports:
+      - "10000:10000/udp"
+      - "127.0.0.1:9090:9090"
+    environment:
+      - XMPP_DOMAIN=meet.jitsi
+      - XMPP_AUTH_DOMAIN=auth.meet.jitsi
+      - XMPP_INTERNAL_MUC_DOMAIN=internal-muc.meet.jitsi
+      - XMPP_SERVER=jitsi-prosody
+      - JVB_AUTH_USER=jvb
+      - JVB_AUTH_PASSWORD=jvb_password
+      - JVB_BREWERY_MUC=jvbbrewery
+      - JVB_PORT=10000
+      - JVB_TCP_HARVESTER_DISABLED=true
+      - JVB_STUN_SERVERS=meet-jit-si-turnrelay.jitsi.net:443
+      - JVB_ADVERTISE_IPS=127.0.0.1
+    volumes:
+      - jitsi_jvb_config:/config
+
   payment-service:
     build:
       context: .
@@ -224,3 +312,8 @@ volumes:
   mongo_data:
   ollama_data:
   whisper_data:
+  jitsi_web_config:
+  jitsi_prosody_config:
+  jitsi_prosody_plugins:
+  jitsi_jicofo_config:
+  jitsi_jvb_config:

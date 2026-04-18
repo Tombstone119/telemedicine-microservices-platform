@@ -1,4 +1,3 @@
-const crypto = require('crypto');
 const express = require('express');
 const { verifyToken, requireRole } = require('../../../../shared/middleware/auth');
 const { pool } = require('../db');
@@ -7,12 +6,15 @@ const router = express.Router();
 
 const joinGraceMinutes = parseInt(process.env.SESSION_JOIN_GRACE_MINUTES, 10) || 15;
 const meetingBaseUrl = (process.env.MEETING_BASE_URL || 'https://meet.jit.si').replace(/\/$/, '');
-const roomPrefix = process.env.MEETING_ROOM_PREFIX || 'telemedicine';
+const roomPrefix = process.env.MEETING_ROOM_PREFIX || 'suwapiyasa';
 
-function buildMeetingLink(appointmentId) {
-  const token = crypto.randomBytes(8).toString('hex');
-  const room = `${roomPrefix}-appointment-${appointmentId}-${token}`;
-  return `${meetingBaseUrl}/${room}`;
+function buildJitsiRoomName(appointmentId) {
+  const timestamp = Date.now();
+  return `${roomPrefix}-${appointmentId}-${timestamp}`;
+}
+
+function buildMeetingLink(roomName) {
+  return `${meetingBaseUrl}/${roomName}`;
 }
 
 async function getDoctorByUserId(userId) {
@@ -72,7 +74,12 @@ router.get('/appointments/:id', verifyToken, requireRole('patient', 'doctor'), a
       return res.status(403).json({ error: 'Forbidden' });
     }
 
-    return res.json(appointment);
+    return res.json({
+      appointment_id: appointment.id,
+      status: appointment.status,
+      meeting_link: appointment.meeting_link || null,
+      has_meeting: Boolean(appointment.meeting_link),
+    });
   } catch (error) {
     console.error('[TelemedicineService] GET /appointments/:id error:', error);
     return res.status(500).json({ error: 'Server error' });
@@ -122,7 +129,8 @@ router.post('/appointments/:id/start', verifyToken, requireRole('doctor'), async
       return res.status(409).json({ error: 'Appointment must be confirmed before starting session' });
     }
 
-    const meetingLink = appointment.meeting_link || buildMeetingLink(appointment.id);
+    const roomName = buildJitsiRoomName(appointment.id);
+    const meetingLink = buildMeetingLink(roomName);
 
     await client.query(
       `
@@ -157,6 +165,7 @@ router.post('/appointments/:id/start', verifyToken, requireRole('doctor'), async
 
     return res.json({
       appointment_id: appointment.id,
+      room_name: roomName,
       meeting_link: meetingLink,
       status: appointment.status,
       started_at: new Date().toISOString(),

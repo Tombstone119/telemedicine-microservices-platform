@@ -15,6 +15,7 @@ type Appointment = {
   consultation_fee?: number;
   specialty?: string;
   notes?: string;
+  meeting_link?: string;
   telemedicine_session_url?: string;
 };
 
@@ -78,14 +79,17 @@ export default function Appointments() {
   const handleJoin = async (id: string | number) => {
     try {
       setActionId(id);
-      const { data } = await api.post(`/telemedicine/appointments/${id}/join`);
-      const joinUrl = data?.join_url || data?.url || data?.session_url;
+      const { data } = await api.get(`/telemedicine/appointments/${id}`);
+      const joinUrl = data?.meeting_link;
       if (joinUrl) {
         window.open(joinUrl, '_blank', 'noopener,noreferrer');
+      } else {
+        toast.error('Call has not been started by doctor yet');
+        return;
       }
-      toast.success('Telemedicine session opened');
+      toast.success('Opening video consultation');
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Unable to join telemedicine session');
+      toast.error(error?.response?.data?.error || error?.response?.data?.message || 'Unable to join call');
     } finally {
       setActionId(null);
     }
@@ -138,8 +142,8 @@ export default function Appointments() {
                   </div>
 
                   <div className="flex flex-col gap-2 sm:flex-row">
-                    {(appointment.status || '').toLowerCase().includes('confirm') && (
-                      <Button onClick={() => handleJoin(appointment.id)} loading={actionId === appointment.id}>Join</Button>
+                    {['confirmed', 'completed'].includes((appointment.status || '').toLowerCase()) && (
+                      <Button onClick={() => handleJoin(appointment.id)} loading={actionId === appointment.id}>Join Call</Button>
                     )}
                     {(appointment.status || '').toLowerCase().includes('pending') && (
                       <Button variant="outline" onClick={() => handleCancel(appointment.id)} loading={actionId === appointment.id}>Cancel</Button>

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import api from '../../services/api';
 import Card from '../../components/UI/Card';
 import Button from '../../components/UI/Button';
+import JitsiMeeting from '../../components/VideoCall';
 
 type Appointment = {
   id: string | number;
@@ -26,6 +27,8 @@ export default function Appointments() {
   const [loading, setLoading] = useState(true);
   const [filterDate, setFilterDate] = useState('');
   const [actionKey, setActionKey] = useState<string | null>(null);
+  const [meetingLinks, setMeetingLinks] = useState<Record<string, string>>({});
+  const [embeddedAppointmentId, setEmbeddedAppointmentId] = useState<string | number | null>(null);
 
   const loadAppointments = async () => {
     try {
@@ -70,13 +73,27 @@ export default function Appointments() {
     try {
       setActionKey(`${id}-start`);
       const { data } = await api.post(`/telemedicine/appointments/${id}/start`);
-      const joinUrl = data?.meeting_link || data?.join_url || data?.session_url || data?.url;
-      if (joinUrl) window.open(joinUrl, '_blank', 'noopener,noreferrer');
-      toast.success('Telemedicine session started');
+      const joinUrl = data?.meeting_link;
+      if (!joinUrl) {
+        toast.error('Meeting link was not returned by server');
+        return;
+      }
+
+      setMeetingLinks((prev) => ({ ...prev, [String(id)]: joinUrl }));
+      toast.success('Jitsi call started. Share the link with patient.');
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || 'Unable to start telemedicine session');
+      toast.error(error?.response?.data?.error || error?.response?.data?.message || 'Unable to start call');
     } finally {
       setActionKey(null);
+    }
+  };
+
+  const copyMeetingLink = async (link: string) => {
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success('Meeting link copied');
+    } catch (_error) {
+      toast.error('Unable to copy link');
     }
   };
 
@@ -123,7 +140,7 @@ export default function Appointments() {
                     loading={actionKey === `${appointment.id}-start`}
                     disabled={!canStart}
                   >
-                    Start Session
+                    Start Call
                   </Button>
                   <Button
                     variant="outline"
@@ -151,6 +168,37 @@ export default function Appointments() {
                   </Button>
                 </div>
               </div>
+
+              {meetingLinks[String(appointment.id)] && (
+                <div className="mt-4 rounded-xl border border-[#107393]/20 bg-[#107393]/5 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-[#0d5a75]">Meeting Link</p>
+                  <p className="mt-1 break-all text-sm text-slate-700">{meetingLinks[String(appointment.id)]}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Button variant="outline" onClick={() => copyMeetingLink(meetingLinks[String(appointment.id)])}>Copy Link</Button>
+                    <Button
+                      variant="secondary"
+                      onClick={() => setEmbeddedAppointmentId((prev) => (prev === appointment.id ? null : appointment.id))}
+                    >
+                      {embeddedAppointmentId === appointment.id ? 'Hide Embedded Call' : 'Open Embedded Call'}
+                    </Button>
+                    <Button
+                      onClick={() => window.open(meetingLinks[String(appointment.id)], '_blank', 'noopener,noreferrer')}
+                    >
+                      Open in New Tab
+                    </Button>
+                  </div>
+
+                  {embeddedAppointmentId === appointment.id && (
+                    <div className="mt-4">
+                      <JitsiMeeting
+                        meetingLink={meetingLinks[String(appointment.id)]}
+                        userName="Doctor"
+                        className="h-[480px]"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
             </Card>
           );
         })}
