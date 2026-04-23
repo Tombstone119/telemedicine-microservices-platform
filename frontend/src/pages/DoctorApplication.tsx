@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import axios from 'axios';
 import Card from '../components/UI/Card';
 import Button from '../components/UI/Button';
 import api from '../services/api';
@@ -37,7 +36,6 @@ export default function DoctorApplication() {
   const [form, setForm] = useState<DoctorApplicationForm>(initialForm);
   const [errors, setErrors] = useState<Partial<Record<keyof DoctorApplicationForm, string>>>({});
   const [submitting, setSubmitting] = useState(false);
-  const baseURL = api.defaults.baseURL || 'http://localhost/api';
 
   useEffect(() => {
     document.title = 'Doctor Registration | SUWAPIYASA.LK';
@@ -79,7 +77,7 @@ export default function DoctorApplication() {
       let role: string | undefined;
 
       try {
-        const { data: registration } = await axios.post(`${baseURL}/auth/register`, {
+        const { data: registration } = await api.post('/auth/register', {
           full_name: form.full_name,
           email: form.email,
           password: form.password,
@@ -94,7 +92,7 @@ export default function DoctorApplication() {
           throw registrationError;
         }
 
-        const { data: login } = await axios.post(`${baseURL}/auth/login`, {
+        const { data: login } = await api.post('/auth/login', {
           email: form.email,
           password: form.password,
         });
@@ -121,7 +119,7 @@ export default function DoctorApplication() {
         bio: form.bio,
       };
 
-      await axios.put(`${baseURL}/doctors/profile`, doctorPayload, {
+      await api.put('/doctors/profile', doctorPayload, {
         headers: { Authorization: `Bearer ${token}` },
       });
 

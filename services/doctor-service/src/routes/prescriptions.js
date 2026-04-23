@@ -19,7 +19,7 @@ async function ensureDoctorRow(user) {
 
 router.post('/prescriptions', verifyToken, requireRole('doctor'), async (req, res) => {
   try {
-    await ensureDoctorRow(req.user);
+    const doctorId = await ensureDoctorRow(req.user);
 
     const { patientId, appointmentId, medications, notes } = req.body;
 
@@ -39,10 +39,10 @@ router.post('/prescriptions', verifyToken, requireRole('doctor'), async (req, re
             prescription = $1::jsonb,
             prescription_notes = $2,
             status = 'completed'
-          WHERE id = $3 AND doctor_id = $4
+            WHERE id = $3 AND doctor_id = $4
           RETURNING *
         `,
-        [JSON.stringify(medications), notes || null, appointmentId, req.user.id]
+          [JSON.stringify(medications), notes || null, appointmentId, doctorId]
       );
 
       if (updateResult.rows.length === 0) {
@@ -66,7 +66,7 @@ router.post('/prescriptions', verifyToken, requireRole('doctor'), async (req, re
         RETURNING *
       `,
       [
-        req.user.id,
+        doctorId,
         patientId,
         JSON.stringify(medications),
         notes || null,

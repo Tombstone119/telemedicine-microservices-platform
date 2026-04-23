@@ -124,8 +124,11 @@ app.get('/health', (req, res) => {
 
 // Register
 app.post('/api/auth/register', async (req, res) => {
+  let client;
+
   try {
     const { email, password, role = 'patient', full_name } = req.body;
+    const normalizedRole = typeof role === 'string' ? role.trim() : 'patient';
 
     if (!email || !password) {
       return res.status(400).json({ message: 'email and password are required' });
@@ -135,22 +138,81 @@ app.post('/api/auth/register', async (req, res) => {
       return res.status(400).json({ message: 'password must be at least 8 characters' });
     }
 
+    if (!allowedRoles.has(normalizedRole)) {
+      return res.status(400).json({ message: 'invalid role value' });
+    }
+
+    const normalizedEmail = email.toLowerCase();
+    const defaultName = full_name || normalizedEmail.split('@')[0];
+
+    client = await pool.connect();
+    await client.query('BEGIN');
+
     // Check if user exists
-    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email.toLowerCase()]);
+    const existing = await client.query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
     if (existing.rows.length > 0) {
+      await client.query('ROLLBACK');
       return res.status(409).json({ message: 'user already exists' });
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
-    
+
     // Insert with correct column name 'password_hash'
-    const result = await pool.query(
+    const result = await client.query(
       `INSERT INTO users (email, password_hash, role, full_name) 
        VALUES ($1, $2, $3, $4) RETURNING id, email, role`,
-      [email.toLowerCase(), passwordHash, role, full_name || email.split('@')[0]]
+      [normalizedEmail, passwordHash, normalizedRole, defaultName]
     );
 
     const user = result.rows[0];
+
+    if (user.role === 'doctor') {
+      const doctorResult = await client.query(
+        `
+          INSERT INTO doctors (user_id, specialty, qualification, consultation_fee, available, approval_status)
+          VALUES ($1, NULL, NULL, NULL, FALSE, 'pending')
+          ON CONFLICT (user_id) DO UPDATE
+          SET approval_status = EXCLUDED.approval_status,
+              available = EXCLUDED.available
+          RETURNING id
+        `,
+        [user.id]
+      );
+
+      if (doctorResult.rows.length === 0) {
+        throw new Error('doctor profile creation failed');
+      }
+    }
+
+    if (user.role === 'patient') {
+      const patientResult = await client.query(
+        `
+          INSERT INTO patients (user_id, name, email)
+          VALUES ($1, $2, $3)
+          ON CONFLICT (user_id) DO UPDATE
+          SET name = EXCLUDED.name,
+              email = EXCLUDED.email
+          RETURNING id
+        `,
+        [user.id, defaultName, user.email]
+      );
+
+      if (patientResult.rows.length === 0) {
+        throw new Error('patient profile creation failed');
+      }
+
+      await client.query(
+        `
+          INSERT INTO medical_history (patient_id)
+          VALUES ($1)
+          ON CONFLICT DO NOTHING
+        `,
+        [patientResult.rows[0].id]
+      );
+    }
+
+    await client.query('COMMIT');
+
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       JWT_SECRET,
@@ -163,8 +225,20 @@ app.post('/api/auth/register', async (req, res) => {
       user: { id: user.id, email: user.email, role: user.role }
     });
   } catch (error) {
+    if (client) {
+      try {
+        await client.query('ROLLBACK');
+      } catch (_rollbackError) {
+        // no-op
+      }
+    }
+
     console.error('register error:', error);
     res.status(500).json({ message: 'internal server error' });
+  } finally {
+    if (client) {
+      client.release();
+    }
   }
 });
 

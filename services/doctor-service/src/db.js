@@ -43,15 +43,17 @@ async function initDB() {
     await pool.query(`
       DO $$
       BEGIN
-        IF NOT EXISTS (
+        IF EXISTS (
           SELECT 1
           FROM pg_constraint
           WHERE conname = 'doctors_approval_status_check'
         ) THEN
-          ALTER TABLE doctors
-          ADD CONSTRAINT doctors_approval_status_check
-          CHECK (approval_status IN ('pending', 'approved', 'rejected'));
+          ALTER TABLE doctors DROP CONSTRAINT doctors_approval_status_check;
         END IF;
+
+        ALTER TABLE doctors
+        ADD CONSTRAINT doctors_approval_status_check
+        CHECK (approval_status IN ('pending', 'pending_verification', 'in_review', 'approved', 'rejected'));
       END $$;
     `);
 
@@ -71,6 +73,44 @@ async function initDB() {
     await pool.query('ALTER TABLE availability ADD COLUMN IF NOT EXISTS start_time TIME;');
     await pool.query('ALTER TABLE availability ADD COLUMN IF NOT EXISTS end_time TIME;');
     await pool.query('ALTER TABLE availability ADD COLUMN IF NOT EXISTS is_available BOOLEAN DEFAULT TRUE;');
+    await pool.query(`
+      DELETE FROM availability a
+      USING (
+        SELECT id
+        FROM (
+          SELECT
+            id,
+            ROW_NUMBER() OVER (
+              PARTITION BY doctor_id, day_of_week, start_time, end_time
+              ORDER BY id DESC
+            ) AS row_num
+          FROM availability
+          WHERE is_available = TRUE
+        ) ranked
+        WHERE ranked.row_num > 1
+      ) duplicates
+      WHERE a.id = duplicates.id;
+    `);
+    await pool.query(
+      'CREATE UNIQUE INDEX IF NOT EXISTS availability_unique_active_slot ON availability (doctor_id, day_of_week, start_time, end_time) WHERE is_available = TRUE;'
+    );
+
+    await pool.query(`
+      DO $$
+      BEGIN
+        IF to_regclass('public.users') IS NOT NULL AND to_regclass('public.doctors') IS NOT NULL THEN
+          INSERT INTO doctors (user_id, available, approval_status)
+          SELECT u.id, FALSE, 'pending'
+          FROM users u
+          WHERE u.role = 'doctor'
+            AND NOT EXISTS (
+              SELECT 1
+              FROM doctors d
+              WHERE d.user_id = u.id
+            );
+        END IF;
+      END $$;
+    `);
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS appointments (
@@ -78,7 +118,7 @@ async function initDB() {
         doctor_id INTEGER NOT NULL,
         patient_id INTEGER,
         appointment_time TIMESTAMP,
-        status VARCHAR(50) DEFAULT 'scheduled',
+        status VARCHAR(50) DEFAULT 'pending',
         payment_status VARCHAR(50) DEFAULT 'pending',
         meeting_link TEXT,
         created_at TIMESTAMP DEFAULT NOW(),
@@ -86,6 +126,8 @@ async function initDB() {
         prescription_notes TEXT
       );
     `);
+
+    await pool.query("UPDATE appointments SET status = 'pending' WHERE status = 'scheduled'");
 
     await pool.query(
       "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS prescription JSONB DEFAULT '[]'::jsonb;"

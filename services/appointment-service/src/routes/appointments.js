@@ -8,6 +8,72 @@ const router = express.Router();
 const APPOINTMENT_STATUSES = new Set(['pending', 'confirmed', 'completed', 'cancelled']);
 const PAYMENT_STATUSES = new Set(['pending', 'paid', 'failed']);
 
+async function backfillDoctorProfiles() {
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.users') IS NOT NULL AND to_regclass('public.doctors') IS NOT NULL THEN
+        INSERT INTO doctors (user_id, available, approval_status)
+        SELECT u.id, FALSE, 'pending'
+        FROM users u
+        WHERE u.role = 'doctor'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM doctors d
+            WHERE d.user_id = u.id
+          );
+      END IF;
+    END $$;
+  `);
+}
+
+async function ensurePatientProfileByUserId(userId) {
+  const existing = await pool.query(
+    `
+      SELECT p.id, p.user_id, p.name, p.email
+      FROM patients p
+      WHERE p.user_id = $1
+    `,
+    [userId]
+  );
+
+  if (existing.rows.length > 0) {
+    return existing.rows[0];
+  }
+
+  const usersTable = await pool.query("SELECT to_regclass('public.users') AS table_name");
+  const patientsTable = await pool.query("SELECT to_regclass('public.patients') AS table_name");
+
+  if (usersTable.rows[0]?.table_name && patientsTable.rows[0]?.table_name) {
+    await pool.query(
+      `
+        INSERT INTO patients (user_id, name, email)
+        SELECT u.id, COALESCE(NULLIF(u.full_name, ''), split_part(u.email, '@', 1)), u.email
+        FROM users u
+        WHERE u.id = $1
+          AND u.role = 'patient'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM patients p
+            WHERE p.user_id = u.id
+          )
+      `,
+      [userId]
+    );
+  }
+
+  const inserted = await pool.query(
+    `
+      SELECT p.id, p.user_id, p.name, p.email
+      FROM patients p
+      WHERE p.user_id = $1
+    `,
+    [userId]
+  );
+
+  return inserted.rows[0] || null;
+}
+
 function parsePagination(query) {
   const page = Math.max(1, parseInt(query.page, 10) || 1);
   const limit = Math.min(100, Math.max(1, parseInt(query.limit, 10) || 20));
@@ -98,6 +164,8 @@ function canAccessAppointment(appointment, user) {
 
 router.get('/doctors', async (req, res) => {
   try {
+    await backfillDoctorProfiles();
+
     const { specialty, available } = req.query;
     const { page, limit, offset } = parsePagination(req.query);
 
@@ -188,6 +256,8 @@ router.get('/doctors/:doctorId', async (req, res) => {
 
 router.post('/', verifyToken, requireRole('patient'), async (req, res) => {
   try {
+    await backfillDoctorProfiles();
+
     const { doctor_id, appointment_time } = req.body;
     const doctorId = parseInt(doctor_id, 10);
 
@@ -209,7 +279,7 @@ router.post('/', verifyToken, requireRole('patient'), async (req, res) => {
       return res.status(404).json({ error: 'Doctor not found' });
     }
 
-    const patient = await getPatientByUserId(req.user.id);
+    const patient = await ensurePatientProfileByUserId(req.user.id);
     if (!patient) {
       return res.status(404).json({ error: 'Patient profile not found' });
     }

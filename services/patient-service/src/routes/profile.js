@@ -4,20 +4,65 @@ const { pool } = require('../db');
 
 const router = express.Router();
 
+async function ensurePatientProfile(user) {
+  const existing = await pool.query('SELECT * FROM patients WHERE user_id = $1', [user.id]);
+  if (existing.rows.length > 0) {
+    return existing.rows[0];
+  }
+
+  const usersTable = await pool.query("SELECT to_regclass('public.users') AS table_name");
+  if (!usersTable.rows[0]?.table_name) {
+    return null;
+  }
+
+  const inserted = await pool.query(
+    `
+      INSERT INTO patients (user_id, name, email)
+      SELECT u.id, COALESCE(NULLIF(u.full_name, ''), split_part(u.email, '@', 1)), u.email
+      FROM users u
+      WHERE u.id = $1
+        AND u.role = 'patient'
+        AND NOT EXISTS (
+          SELECT 1
+          FROM patients p
+          WHERE p.user_id = u.id
+        )
+      RETURNING *
+    `,
+    [user.id]
+  );
+
+  const patient = inserted.rows[0] || null;
+
+  if (patient) {
+    const historyTable = await pool.query("SELECT to_regclass('public.medical_history') AS table_name");
+    if (historyTable.rows[0]?.table_name) {
+      await pool.query(
+        `
+          INSERT INTO medical_history (patient_id)
+          SELECT $1
+          WHERE NOT EXISTS (
+            SELECT 1
+            FROM medical_history mh
+            WHERE mh.patient_id = $1
+          )
+        `,
+        [patient.id]
+      );
+    }
+  }
+
+  return patient;
+}
+
 router.get('/profile', verifyToken, requireRole('patient'), async (req, res) => {
   try {
-    const patientResult = await pool.query(
-      'SELECT * FROM patients WHERE user_id = $1',
-      [req.user.id]
-    );
-
-    if (patientResult.rows.length === 0) {
+    const patient = await ensurePatientProfile(req.user);
+    if (!patient) {
       return res
         .status(404)
         .json({ error: 'Profile not found. Please create your profile first.' });
     }
-
-    const patient = patientResult.rows[0];
 
     const historyResult = await pool.query(
       'SELECT * FROM medical_history WHERE patient_id = $1',
@@ -53,10 +98,7 @@ router.post('/profile', verifyToken, requireRole('patient'), async (req, res) =>
       return res.status(400).json({ error: 'Name is required' });
     }
 
-    const existingProfileResult = await pool.query(
-      'SELECT id FROM patients WHERE user_id = $1',
-      [req.user.id]
-    );
+    const existingProfileResult = await pool.query('SELECT id FROM patients WHERE user_id = $1', [req.user.id]);
 
     if (existingProfileResult.rows.length > 0) {
       return res

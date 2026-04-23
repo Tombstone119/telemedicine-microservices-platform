@@ -2,12 +2,34 @@ const router = require('express').Router();
 const { verifyToken, requireRole } = require('../../../../shared/middleware/auth');
 const { pool } = require('../db');
 
-const validStatuses = new Set(['pending', 'approved', 'rejected']);
+const validStatuses = new Set(['pending', 'pending_verification', 'in_review', 'approved', 'rejected']);
+const defaultQueueStatuses = ['pending', 'pending_verification', 'in_review'];
+
+async function backfillDoctorProfiles() {
+  await pool.query(`
+    DO $$
+    BEGIN
+      IF to_regclass('public.users') IS NOT NULL AND to_regclass('public.doctors') IS NOT NULL THEN
+        INSERT INTO doctors (user_id, available, approval_status)
+        SELECT u.id, FALSE, 'pending'
+        FROM users u
+        WHERE u.role = 'doctor'
+          AND NOT EXISTS (
+            SELECT 1
+            FROM doctors d
+            WHERE d.user_id = u.id
+          );
+      END IF;
+    END $$;
+  `);
+}
 
 router.use('/admin', verifyToken, requireRole('admin'));
 
 router.get('/admin', async (req, res) => {
   try {
+    await backfillDoctorProfiles();
+
     const queryText = typeof req.query.query === 'string' ? req.query.query.trim() : '';
     const status = typeof req.query.status === 'string' ? req.query.status.trim() : '';
 
@@ -27,6 +49,9 @@ router.get('/admin', async (req, res) => {
     if (status && validStatuses.has(status)) {
       values.push(status);
       filters.push(`d.approval_status = $${values.length}`);
+    } else {
+      values.push(defaultQueueStatuses);
+      filters.push(`d.approval_status = ANY($${values.length}::text[])`);
     }
 
     const whereClause = filters.length ? `WHERE ${filters.join(' AND ')}` : '';
@@ -54,8 +79,10 @@ router.get('/admin', async (req, res) => {
         ORDER BY
           CASE d.approval_status
             WHEN 'pending' THEN 0
-            WHEN 'rejected' THEN 1
-            ELSE 2
+            WHEN 'pending_verification' THEN 1
+            WHEN 'in_review' THEN 2
+            WHEN 'rejected' THEN 3
+            ELSE 4
           END,
           d.id DESC
       `,

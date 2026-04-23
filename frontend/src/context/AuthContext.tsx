@@ -139,7 +139,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     clearAuth();
     toast.success('Logged out');
-    navigate('/login', { replace: true });
+    navigate('/', { replace: true });
   }, [clearAuth, navigate]);
 
   const value = useMemo<AuthContextValue>(

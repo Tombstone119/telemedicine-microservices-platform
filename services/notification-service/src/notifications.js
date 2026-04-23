@@ -34,15 +34,15 @@ function formatMessage(routingKey, payload) {
 }
 
 async function sendEmail(toEmail, subject, body) {
-  const mode = (process.env.NOTIFICATION_MODE || 'mock').toLowerCase();
+  const mode = (process.env.NOTIFICATION_MODE || 'enabled').toLowerCase();
 
   if (!toEmail) {
     console.log('[NotificationService] Skipping email: missing recipient');
     return;
   }
 
-  if (mode === 'mock') {
-    console.log(`[NotificationService][MOCK EMAIL] to=${toEmail} subject=${subject} body=${body}`);
+  if (mode === 'disabled') {
+    console.log('[NotificationService] Email delivery is disabled by configuration');
     return;
   }
 
@@ -50,15 +50,15 @@ async function sendEmail(toEmail, subject, body) {
 }
 
 async function sendSMS(toPhone, body) {
-  const mode = (process.env.NOTIFICATION_MODE || 'mock').toLowerCase();
+  const mode = (process.env.NOTIFICATION_MODE || 'enabled').toLowerCase();
 
   if (!toPhone) {
     console.log('[NotificationService] Skipping SMS: missing recipient');
     return;
   }
 
-  if (mode === 'mock') {
-    console.log(`[NotificationService][MOCK SMS] to=${toPhone} body=${body}`);
+  if (mode === 'disabled') {
+    console.log('[NotificationService] SMS delivery is disabled by configuration');
     return;
   }
 

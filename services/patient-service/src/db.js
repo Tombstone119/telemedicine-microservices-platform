@@ -13,13 +13,6 @@ async function initDB() {
     await pool.query('CREATE EXTENSION IF NOT EXISTS pgcrypto;');
 
     await pool.query(`
-      DROP TABLE IF EXISTS prescriptions CASCADE;
-      DROP TABLE IF EXISTS medical_reports CASCADE;
-      DROP TABLE IF EXISTS medical_history CASCADE;
-      DROP TABLE IF EXISTS patients CASCADE;
-    `);
-
-    await pool.query(`
       CREATE TABLE IF NOT EXISTS patients (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         user_id INTEGER UNIQUE NOT NULL,
@@ -67,9 +60,9 @@ async function initDB() {
       CREATE TABLE IF NOT EXISTS prescriptions (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
         patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
-        doctor_id UUID NOT NULL,
+        doctor_id INTEGER NOT NULL REFERENCES doctors(id),
+        appointment_id INTEGER REFERENCES appointments(id),
         doctor_name TEXT,
-        appointment_id UUID,
         medications JSONB NOT NULL DEFAULT '[]',
         notes TEXT,
         issued_at TIMESTAMPTZ DEFAULT NOW()

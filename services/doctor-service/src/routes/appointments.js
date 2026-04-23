@@ -43,7 +43,7 @@ async function ensureDoctorRow(user) {
 
 router.get('/appointments', verifyToken, requireRole('doctor'), async (req, res) => {
   try {
-    await ensureDoctorRow(req.user);
+    const doctorId = await ensureDoctorRow(req.user);
 
     const result = await pool.query(
       `
@@ -53,7 +53,7 @@ router.get('/appointments', verifyToken, requireRole('doctor'), async (req, res)
         ORDER BY appointment_time DESC NULLS LAST,
                  created_at DESC
       `,
-      [req.user.id]
+      [doctorId]
     );
 
     return res.json(result.rows);
@@ -68,10 +68,10 @@ router.get('/appointments', verifyToken, requireRole('doctor'), async (req, res)
 
 router.put('/appointments/:id/status', verifyToken, requireRole('doctor'), async (req, res) => {
   try {
-    await ensureDoctorRow(req.user);
+    const doctorId = await ensureDoctorRow(req.user);
 
     const { status } = req.body;
-    const validStatuses = ['scheduled', 'confirmed', 'completed', 'cancelled'];
+    const validStatuses = ['pending', 'confirmed', 'completed', 'cancelled'];
 
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({ error: 'Invalid status value' });
@@ -85,7 +85,7 @@ router.put('/appointments/:id/status', verifyToken, requireRole('doctor'), async
         WHERE id = $2 AND doctor_id = $3
         RETURNING *
       `,
-      [status, req.params.id, req.user.id]
+      [status, req.params.id, doctorId]
     );
 
     if (result.rows.length === 0) {

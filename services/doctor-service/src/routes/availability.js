@@ -94,6 +94,24 @@ router.post('/availability', verifyToken, requireRole('doctor'), async (req, res
       return res.status(400).json({ error: 'day_of_week, start_time and end_time are required' });
     }
 
+    const existingSlot = await pool.query(
+      `
+        SELECT id
+        FROM availability
+        WHERE doctor_id = $1
+          AND day_of_week = $2
+          AND start_time = $3
+          AND end_time = $4
+          AND is_available = TRUE
+        LIMIT 1
+      `,
+      [doctorId, dayOfWeek, start_time, end_time]
+    );
+
+    if (existingSlot.rows.length > 0) {
+      return res.status(409).json({ error: 'This availability slot already exists' });
+    }
+
     const result = await pool.query(
       `
         INSERT INTO availability (
@@ -119,6 +137,9 @@ router.post('/availability', verifyToken, requireRole('doctor'), async (req, res
   } catch (error) {
     if (error.statusCode === 403) {
       return res.status(403).json({ error: error.message });
+    }
+    if (error.code === '23505') {
+      return res.status(409).json({ error: 'This availability slot already exists' });
     }
     console.error('[DoctorService] POST /availability error:', error);
     return res.status(500).json({ error: 'Server error' });

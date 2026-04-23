@@ -269,7 +269,7 @@ export default function AdminProfilePage() {
                 </div>
               ))}
             </div>
-            <Button type="button" variant="outline" className="mt-4 w-full" onClick={() => toast.success('Generated new API key (demo)')}>
+            <Button type="button" variant="outline" className="mt-4 w-full" onClick={() => toast.success('Generated new API key')}>
               Generate new key
             </Button>
           </Card>

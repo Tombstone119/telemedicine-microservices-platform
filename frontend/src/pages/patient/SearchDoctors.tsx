@@ -164,22 +164,18 @@ export default function SearchDoctors() {
   const fetchDoctors = useCallback(async () => {
     try {
       setLoading(true);
-      const { data } = await api.get('/appointments/doctors');
+      const { data } = await api.get('/appointments/doctors', {
+        params: {
+          available: true,
+          limit: 200,
+        },
+      });
       const doctorList = unwrapDoctors(data);
       setDoctors(doctorList);
     } catch (error: any) {
       console.error('Fetch error:', error);
-      // Mock data for demo if API fails
-      const mockDoctors: Doctor[] = [
-        { id: 1, full_name: 'Dr. Sarah Chen', specialty: 'Cardiology', qualification: 'MD, FACC', consultation_fee: 3500, rating: 4.8, reviews_count: 124, experience: 15, available: true, next_available: new Date(Date.now() + 86400000).toISOString(), bio: 'Expert cardiologist with 15+ years experience' },
-        { id: 2, full_name: 'Dr. Michael Lee', specialty: 'General Medicine', qualification: 'MBBS, MD', consultation_fee: 2500, rating: 4.9, reviews_count: 87, experience: 8, available: true, next_available: new Date(Date.now() + 172800000).toISOString(), bio: 'Compassionate primary care physician' },
-        { id: 3, full_name: 'Dr. Priya Patel', specialty: 'Dermatology', qualification: 'MD, DDVL', consultation_fee: 4000, rating: 4.7, reviews_count: 56, experience: 12, available: true, next_available: new Date(Date.now() + 259200000).toISOString(), bio: 'Skin care specialist' },
-        { id: 4, full_name: 'Dr. John Doe', specialty: 'Neurology', qualification: 'MD, DM', consultation_fee: 4500, rating: 4.6, reviews_count: 234, experience: 20, available: false, next_available: new Date(Date.now() + 432000000).toISOString(), bio: 'Neurology expert' },
-        { id: 5, full_name: 'Dr. Jane Smith', specialty: 'Pediatrics', qualification: 'MD, DCH', consultation_fee: 3000, rating: 4.9, reviews_count: 312, experience: 10, available: true, next_available: new Date(Date.now() + 86400000).toISOString(), bio: 'Child specialist' },
-        { id: 6, full_name: 'Dr. Ali Raza', specialty: 'Orthopedics', qualification: 'MS Ortho', consultation_fee: 3800, rating: 4.5, reviews_count: 78, experience: 14, available: true, next_available: new Date(Date.now() + 172800000).toISOString(), bio: 'Bone and joint specialist' },
-      ];
-      setDoctors(mockDoctors);
-      toast.error('Using demo data. API may not be available.');
+      setDoctors([]);
+      toast.error(error?.response?.data?.message || 'Unable to load doctors');
     } finally {
       setLoading(false);
     }
