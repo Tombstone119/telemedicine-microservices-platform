@@ -37,7 +37,10 @@ import DoctorVerification from './pages/doctor/Verification';
 import DoctorApplication from './pages/DoctorApplication';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/AdminUsers';
-import AdminDoctors from './pages/admin/Doctors';
+import AdminDoctorsPage from './pages/admin/AdminDoctors';
+import AdminDoctorDetail from './pages/admin/DoctorDetail';
+import AdminPatientsPage from './pages/admin/Patients';
+import AdminPatientDetail from './pages/admin/PatientDetail';
 import AdminProfile from './pages/admin/Profile';
 import AdminDoctorVerification from './pages/admin/DoctorVerification';
 import api from './services/api';
@@ -484,7 +487,10 @@ export default function App() {
             <Route path="/admin" element={<Layout />}>
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
-              <Route path="doctors" element={<AdminDoctors />} />
+              <Route path="doctors" element={<AdminDoctorsPage />} />
+              <Route path="doctors/:id" element={<AdminDoctorDetail />} />
+              <Route path="patients" element={<AdminPatientsPage />} />
+              <Route path="patients/:id" element={<AdminPatientDetail />} />
               <Route path="doctor-verification" element={<AdminDoctorVerification />} />
               <Route path="profile" element={<AdminProfile />} />
             </Route>

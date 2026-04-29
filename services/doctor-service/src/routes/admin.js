@@ -135,6 +135,28 @@ router.patch('/admin/:id/verification', async (req, res) => {
   }
 });
 
+router.post('/admin/:id/suspend', async (req, res) => {
+  try {
+    const doctorId = Number(req.params.id);
+    await pool.query('UPDATE doctors SET available = false WHERE id = $1', [doctorId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Suspend error:', error);
+    res.status(500).json({ error: 'Failed to suspend doctor' });
+  }
+});
+
+router.post('/admin/:id/activate', async (req, res) => {
+  try {
+    const doctorId = Number(req.params.id);
+    await pool.query('UPDATE doctors SET available = true WHERE id = $1', [doctorId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Activate error:', error);
+    res.status(500).json({ error: 'Failed to activate doctor' });
+  }
+});
+
 router.patch('/admin/:id/documents', async (req, res) => {
   try {
     const doctorId = Number(req.params.id);

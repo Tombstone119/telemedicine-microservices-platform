@@ -122,7 +122,7 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', service: 'auth-service' });
 });
 
-// Register
+// Register – fixed transaction with guaranteed patient/doctor row creation
 app.post('/api/auth/register', async (req, res) => {
   let client;
 
@@ -148,7 +148,7 @@ app.post('/api/auth/register', async (req, res) => {
     client = await pool.connect();
     await client.query('BEGIN');
 
-    // Check if user exists
+    // Check if user already exists
     const existing = await client.query('SELECT id FROM users WHERE email = $1', [normalizedEmail]);
     if (existing.rows.length > 0) {
       await client.query('ROLLBACK');
@@ -157,26 +157,25 @@ app.post('/api/auth/register', async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
 
-    // Insert with correct column name 'password_hash'
-    const result = await client.query(
+    // Insert user
+    const userResult = await client.query(
       `INSERT INTO users (email, password_hash, role, full_name) 
-       VALUES ($1, $2, $3, $4) RETURNING id, email, role`,
+       VALUES ($1, $2, $3, $4) 
+       RETURNING id, email, role`,
       [normalizedEmail, passwordHash, normalizedRole, defaultName]
     );
+    const user = userResult.rows[0];
 
-    const user = result.rows[0];
-
+    // Doctor profile
     if (user.role === 'doctor') {
       const doctorResult = await client.query(
-        `
-          INSERT INTO doctors (user_id, specialty, qualification, consultation_fee, available, approval_status)
-          VALUES ($1, NULL, NULL, NULL, FALSE, 'pending')
-          ON CONFLICT (user_id) DO UPDATE
-          SET approval_status = EXCLUDED.approval_status,
-              available = EXCLUDED.available
-          RETURNING id
-        `,
-        [user.id]
+        `INSERT INTO doctors (user_id, available, approval_status)
+         VALUES ($1, FALSE, $2)
+         ON CONFLICT (user_id) DO UPDATE
+         SET available = EXCLUDED.available,
+             approval_status = EXCLUDED.approval_status
+         RETURNING id`,
+        [user.id, 'pending_verification']   // pending_verification matches your frontend flow
       );
 
       if (doctorResult.rows.length === 0) {
@@ -184,35 +183,33 @@ app.post('/api/auth/register', async (req, res) => {
       }
     }
 
+    // Patient profile + medical history
     if (user.role === 'patient') {
       const patientResult = await client.query(
-        `
-          INSERT INTO patients (user_id, name, email)
-          VALUES ($1, $2, $3)
-          ON CONFLICT (user_id) DO UPDATE
-          SET name = EXCLUDED.name,
-              email = EXCLUDED.email
-          RETURNING id
-        `,
+        `INSERT INTO patients (user_id, name, email)
+         VALUES ($1, $2, $3)
+         ON CONFLICT (user_id) DO NOTHING
+         RETURNING id`,
         [user.id, defaultName, user.email]
       );
 
       if (patientResult.rows.length === 0) {
-        throw new Error('patient profile creation failed');
+        throw new Error('patient profile creation failed – might already exist?');
       }
+      const patientId = patientResult.rows[0].id;
 
+      // Create medical history entry
       await client.query(
-        `
-          INSERT INTO medical_history (patient_id)
-          VALUES ($1)
-          ON CONFLICT DO NOTHING
-        `,
-        [patientResult.rows[0].id]
+        `INSERT INTO medical_history (patient_id)
+         VALUES ($1)
+         ON CONFLICT (patient_id) DO NOTHING`,
+        [patientId]
       );
     }
 
     await client.query('COMMIT');
 
+    // Generate JWT token
     const token = jwt.sign(
       { id: user.id, email: user.email, role: user.role },
       JWT_SECRET,
@@ -229,7 +226,7 @@ app.post('/api/auth/register', async (req, res) => {
       try {
         await client.query('ROLLBACK');
       } catch (_rollbackError) {
-        // no-op
+        // no‑op
       }
     }
 
