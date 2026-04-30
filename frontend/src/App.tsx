@@ -41,6 +41,7 @@ import AdminDoctorsPage from './pages/admin/AdminDoctors';
 import AdminDoctorDetail from './pages/admin/DoctorDetail';
 import AdminPatientsPage from './pages/admin/Patients';
 import AdminPatientDetail from './pages/admin/PatientDetail';
+import AdminPayments from './pages/admin/Payments';
 import AdminProfile from './pages/admin/Profile';
 import AdminDoctorVerification from './pages/admin/DoctorVerification';
 import api from './services/api';
@@ -491,6 +492,7 @@ export default function App() {
               <Route path="doctors/:id" element={<AdminDoctorDetail />} />
               <Route path="patients" element={<AdminPatientsPage />} />
               <Route path="patients/:id" element={<AdminPatientDetail />} />
+              <Route path="payments" element={<AdminPayments />} />
               <Route path="doctor-verification" element={<AdminDoctorVerification />} />
               <Route path="profile" element={<AdminProfile />} />
             </Route>

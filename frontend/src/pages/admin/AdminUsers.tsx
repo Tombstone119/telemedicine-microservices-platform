@@ -61,17 +61,17 @@ const StatCard = ({ icon: Icon, label, value, color }: { icon: any; label: strin
 
 // Skeleton loader for table rows
 const TableSkeleton = () => (
-  <div className="animate-pulse">
+  <>
     {[...Array(5)].map((_, i) => (
       <tr key={i} className="border-b border-slate-100">
-        <td className="py-3 pl-4 pr-2"><div className="h-5 bg-slate-200 rounded w-3/4"></div></td>
-        <td className="px-2"><div className="h-5 bg-slate-200 rounded w-5/6"></div></td>
-        <td className="px-2"><div className="h-9 w-24 bg-slate-200 rounded-lg"></div></td>
-        <td className="px-2"><div className="h-6 w-20 bg-slate-200 rounded-full"></div></td>
-        <td className="px-2 pr-4 text-right"><div className="h-9 w-28 bg-slate-200 rounded-lg ml-auto"></div></td>
+        <td className="py-3 pl-4 pr-2"><div className="h-5 bg-slate-200 rounded w-3/4 animate-pulse"></div></td>
+        <td className="px-2"><div className="h-5 bg-slate-200 rounded w-5/6 animate-pulse"></div></td>
+        <td className="px-2"><div className="h-9 w-24 bg-slate-200 rounded-lg animate-pulse"></div></td>
+        <td className="px-2"><div className="h-6 w-20 bg-slate-200 rounded-full animate-pulse"></div></td>
+        <td className="px-2 pr-4 text-right"><div className="h-9 w-28 bg-slate-200 rounded-lg ml-auto animate-pulse"></div></td>
       </tr>
     ))}
-  </div>
+  </>
 );
 
 // Confirmation Modal Component

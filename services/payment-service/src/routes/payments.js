@@ -5,6 +5,60 @@ const { stripe } = require('../stripe');
 
 const router = express.Router();
 
+router.get('/admin/income', verifyToken, requireRole('admin'), async (req, res) => {
+  try {
+    const summaryResult = await pool.query(
+      `
+        SELECT
+          COUNT(*)::int AS payment_count,
+          COALESCE(SUM(COALESCE(d.consultation_fee, 0)), 0)::numeric AS total_income,
+          COALESCE(AVG(COALESCE(d.consultation_fee, 0)), 0)::numeric AS average_payment
+        FROM appointments a
+        JOIN doctors d ON d.id = a.doctor_id
+        WHERE a.payment_status = 'paid'
+      `
+    );
+
+    const itemsResult = await pool.query(
+      `
+        SELECT
+          a.id AS appointment_id,
+          a.appointment_time,
+          a.paid_at,
+          a.payment_status,
+          d.consultation_fee AS amount,
+          d.specialty,
+          u_doctor.full_name AS doctor_name,
+          COALESCE(p.name, u_patient.full_name, CONCAT('Patient #', a.patient_id::text)) AS patient_name
+        FROM appointments a
+        JOIN doctors d ON d.id = a.doctor_id
+        JOIN users u_doctor ON u_doctor.id = d.user_id
+        LEFT JOIN patients p ON p.user_id = a.patient_id
+        LEFT JOIN users u_patient ON u_patient.id = a.patient_id
+        WHERE a.payment_status = 'paid'
+        ORDER BY COALESCE(a.paid_at, a.created_at) DESC NULLS LAST, a.appointment_time DESC
+      `
+    );
+
+    const summary = summaryResult.rows[0] || { payment_count: 0, total_income: 0, average_payment: 0 };
+    const items = itemsResult.rows.map((row) => ({
+      appointment_id: row.appointment_id,
+      appointment_time: row.appointment_time,
+      paid_at: row.paid_at,
+      payment_status: row.payment_status,
+      amount: Number(row.amount || 0),
+      specialty: row.specialty,
+      doctor_name: row.doctor_name,
+      patient_name: row.patient_name,
+    }));
+
+    return res.json({ summary, items });
+  } catch (error) {
+    console.error('[PaymentService] GET /admin/income error:', error);
+    return res.status(500).json({ error: 'Failed to fetch income data' });
+  }
+});
+
 function resolveFrontendBaseUrl(frontendBaseUrlRaw) {
   const candidate = typeof frontendBaseUrlRaw === 'string' ? frontendBaseUrlRaw.trim() : '';
   if (!candidate) {

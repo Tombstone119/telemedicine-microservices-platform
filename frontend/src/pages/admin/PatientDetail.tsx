@@ -135,12 +135,12 @@ export default function PatientDetail() {
       try {
         setLoading(true);
         const [patientRes, appointmentsRes, prescriptionsRes, medicalRes, paymentsRes, activitiesRes] = await Promise.all([
-          api.get(`/admin/patients/${id}`),
-          api.get(`/admin/patients/${id}/appointments`).catch(() => ({ data: { items: [] } })),
-          api.get(`/admin/patients/${id}/prescriptions`).catch(() => ({ data: { items: [] } })),
-          api.get(`/admin/patients/${id}/medical-history`).catch(() => ({ data: { items: [] } })),
-          api.get(`/admin/patients/${id}/payments`).catch(() => ({ data: { items: [] } })),
-          api.get(`/admin/patients/${id}/activities`).catch(() => ({ data: { items: [] } })),
+          api.get(`/patients/admin/${id}`),
+          api.get(`/patients/admin/${id}/appointments`).catch(() => ({ data: { items: [] } })),
+          api.get(`/patients/admin/${id}/prescriptions`).catch(() => ({ data: { items: [] } })),
+          api.get(`/patients/admin/${id}/medical-history`).catch(() => ({ data: { items: [] } })),
+          api.get(`/patients/admin/${id}/payments`).catch(() => ({ data: { items: [] } })),
+          api.get(`/patients/admin/${id}/activities`).catch(() => ({ data: { items: [] } })),
         ]);
 
         setPatient(patientRes.data);
@@ -163,7 +163,7 @@ export default function PatientDetail() {
     if (!patient) return;
     try {
       setActionLoading(true);
-      await api.post(`/admin/patients/${patient.id}/suspend`);
+      await api.post(`/patients/admin/${patient.id}/suspend`);
       toast.success('Patient suspended successfully');
       setPatient({ ...patient, status: 'suspended' });
     } catch (error: any) {
@@ -177,7 +177,7 @@ export default function PatientDetail() {
     if (!patient) return;
     try {
       setActionLoading(true);
-      await api.post(`/admin/patients/${patient.id}/activate`);
+      await api.post(`/patients/admin/${patient.id}/activate`);
       toast.success('Patient activated successfully');
       setPatient({ ...patient, status: 'active' });
     } catch (error: any) {

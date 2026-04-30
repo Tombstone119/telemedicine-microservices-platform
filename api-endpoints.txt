@@ -49,8 +49,15 @@ doctor-service
 ========================================
 GET    /health
 GET    /api/doctors/admin
+GET    /api/doctors/admin/:id
+GET    /api/doctors/admin/:id/appointments
+GET    /api/doctors/admin/:id/availability
+GET    /api/doctors/admin/:id/earnings
+GET    /api/doctors/admin/:id/activities
 PATCH  /api/doctors/admin/:id/verification
 PATCH  /api/doctors/admin/:id/documents
+POST   /api/doctors/admin/:id/suspend
+POST   /api/doctors/admin/:id/activate
 GET    /api/doctors/profile
 PUT    /api/doctors/profile
 GET    /api/doctors/availability

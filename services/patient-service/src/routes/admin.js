@@ -1,9 +1,33 @@
-cat > services/patient-service/src/routes/admin.js << 'EOF'
 const express = require('express');
 const { verifyToken, requireRole } = require('../../../../shared/middleware/auth');
 const { pool } = require('../db');
 
 const router = express.Router();
+
+async function getPatientContext(identifier) {
+  const result = await pool.query(
+    `
+      SELECT
+        p.id,
+        p.user_id,
+        p.name,
+        p.email,
+        p.phone,
+        p.blood_type,
+        p.created_at,
+        p.updated_at,
+        u.full_name,
+        u.status
+      FROM patients p
+      LEFT JOIN users u ON u.id = p.user_id
+      WHERE p.id::text = $1 OR p.user_id::text = $1
+      LIMIT 1
+    `,
+    [identifier]
+  );
+
+  return result.rows[0] || null;
+}
 
 // ============ EXISTING ROUTES ============
 
@@ -56,20 +80,14 @@ router.get('/:id', verifyToken, requireRole('admin', 'doctor'), async (req, res)
 router.get('/admin/:id', verifyToken, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    
-    const result = await pool.query(
-      `SELECT p.*, u.full_name, u.email, u.status, u.created_at
-       FROM patients p
-       JOIN users u ON u.id = p.user_id
-       WHERE p.id::text = $1 OR p.user_id::text = $1`,
-      [id]
-    );
-    
-    if (result.rows.length === 0) {
+
+    const patient = await getPatientContext(id);
+
+    if (!patient) {
       return res.status(404).json({ error: 'Patient not found' });
     }
-    
-    res.json(result.rows[0]);
+
+    res.json(patient);
   } catch (error) {
     console.error('[PatientService] GET /admin/:id error:', error);
     res.status(500).json({ error: 'Failed to fetch patient details' });
@@ -79,7 +97,12 @@ router.get('/admin/:id', verifyToken, requireRole('admin'), async (req, res) => 
 router.get('/admin/:id/appointments', verifyToken, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    
+
+    const patient = await getPatientContext(id);
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
     const result = await pool.query(
       `SELECT a.id, a.appointment_time, a.status, a.payment_status,
               d.specialty, d.consultation_fee,
@@ -87,11 +110,9 @@ router.get('/admin/:id/appointments', verifyToken, requireRole('admin'), async (
        FROM appointments a
        JOIN doctors d ON d.id = a.doctor_id
        JOIN users u_doctor ON u_doctor.id = d.user_id
-       WHERE a.patient_id = (
-         SELECT id FROM patients WHERE id::text = $1 OR user_id::text = $1
-       )
+       WHERE a.patient_id = $1
        ORDER BY a.appointment_time DESC`,
-      [id]
+      [patient.user_id]
     );
     
     const items = result.rows.map(row => ({
@@ -115,17 +136,18 @@ router.get('/admin/:id/appointments', verifyToken, requireRole('admin'), async (
 router.get('/admin/:id/prescriptions', verifyToken, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    
+
+    const patient = await getPatientContext(id);
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
     const result = await pool.query(
-      `SELECT pr.*, u_doctor.full_name as doctor_name
+      `SELECT pr.id, pr.doctor_name, pr.issued_at, pr.medications, pr.notes
        FROM prescriptions pr
-       JOIN doctors d ON d.id = pr.doctor_id
-       JOIN users u_doctor ON u_doctor.id = d.user_id
-       WHERE pr.patient_id = (
-         SELECT id FROM patients WHERE id::text = $1 OR user_id::text = $1
-       )
+       WHERE pr.patient_id = $1
        ORDER BY pr.issued_at DESC`,
-      [id]
+      [patient.id]
     );
     
     const items = result.rows.map(row => ({
@@ -146,14 +168,17 @@ router.get('/admin/:id/prescriptions', verifyToken, requireRole('admin'), async 
 router.get('/admin/:id/medical-history', verifyToken, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    
+
+    const patient = await getPatientContext(id);
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
     const result = await pool.query(
       `SELECT mh.*
        FROM medical_history mh
-       WHERE mh.patient_id = (
-         SELECT id FROM patients WHERE id::text = $1 OR user_id::text = $1
-       )`,
-      [id]
+       WHERE mh.patient_id = $1`,
+      [patient.id]
     );
     
     const items = result.rows.length > 0 ? [{
@@ -174,7 +199,12 @@ router.get('/admin/:id/medical-history', verifyToken, requireRole('admin'), asyn
 router.get('/admin/:id/payments', verifyToken, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    
+
+    const patient = await getPatientContext(id);
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
     const result = await pool.query(
       `SELECT a.id as appointment_id, a.appointment_time, a.payment_status,
               d.consultation_fee as amount,
@@ -182,12 +212,10 @@ router.get('/admin/:id/payments', verifyToken, requireRole('admin'), async (req,
        FROM appointments a
        JOIN doctors d ON d.id = a.doctor_id
        JOIN users u_doctor ON u_doctor.id = d.user_id
-       WHERE a.patient_id = (
-         SELECT id FROM patients WHERE id::text = $1 OR user_id::text = $1
-       )
+       WHERE a.patient_id = $1
        AND a.payment_status = 'paid'
        ORDER BY a.appointment_time DESC`,
-      [id]
+      [patient.user_id]
     );
     
     const items = result.rows.map(row => ({
@@ -210,34 +238,33 @@ router.get('/admin/:id/payments', verifyToken, requireRole('admin'), async (req,
 router.get('/admin/:id/activities', verifyToken, requireRole('admin'), async (req, res) => {
   try {
     const { id } = req.params;
-    
+
+    const patient = await getPatientContext(id);
+    if (!patient) {
+      return res.status(404).json({ error: 'Patient not found' });
+    }
+
     const result = await pool.query(
-      `SELECT a.created_at, 'appointment' as type, 
+      `SELECT a.created_at, 'appointment' as type,
               CONCAT('Appointment scheduled with Dr. ', u_doctor.full_name) as description,
               a.status
        FROM appointments a
        JOIN doctors d ON d.id = a.doctor_id
        JOIN users u_doctor ON u_doctor.id = d.user_id
-       WHERE a.patient_id = (
-         SELECT id FROM patients WHERE id::text = $1 OR user_id::text = $1
-       )
+       WHERE a.patient_id = $1
        UNION ALL
        SELECT pr.issued_at as created_at, 'prescription' as type,
-              CONCAT('Prescription issued by Dr. ', u_doctor.full_name) as description,
+              CONCAT('Prescription issued by ', COALESCE(pr.doctor_name, 'a doctor')) as description,
               NULL as status
        FROM prescriptions pr
-       JOIN doctors d ON d.id = pr.doctor_id
-       JOIN users u_doctor ON u_doctor.id = d.user_id
-       WHERE pr.patient_id = (
-         SELECT id FROM patients WHERE id::text = $1 OR user_id::text = $1
-       )
+       WHERE pr.patient_id = $2
        ORDER BY created_at DESC
        LIMIT 50`,
-      [id]
+      [patient.user_id, patient.id]
     );
     
-    const items = result.rows.map(row => ({
-      id: row.id,
+    const items = result.rows.map((row, index) => ({
+      id: index + 1,
       date: row.created_at,
       type: row.type,
       description: row.description,
@@ -306,4 +333,3 @@ router.post('/admin/:id/activate', verifyToken, requireRole('admin'), async (req
 });
 
 module.exports = router;
-EOF

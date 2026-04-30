@@ -31,27 +31,27 @@ const ITEMS_PER_PAGE = 20;
 
 // Skeleton loader
 const TableSkeleton = () => (
-  <div className="animate-pulse">
+  <>
     {[...Array(5)].map((_, i) => (
       <tr key={i} className="border-b border-slate-100">
         <td className="py-3 pl-4 pr-2">
-          <div className="h-5 bg-slate-200 rounded w-3/4"></div>
+          <div className="h-5 bg-slate-200 rounded w-3/4 animate-pulse"></div>
         </td>
         <td className="px-2">
-          <div className="h-5 bg-slate-200 rounded w-5/6"></div>
+          <div className="h-5 bg-slate-200 rounded w-5/6 animate-pulse"></div>
         </td>
         <td className="px-2">
-          <div className="h-5 bg-slate-200 rounded w-2/3"></div>
+          <div className="h-5 bg-slate-200 rounded w-2/3 animate-pulse"></div>
         </td>
         <td className="px-2">
-          <div className="h-6 w-16 bg-slate-200 rounded-full"></div>
+          <div className="h-6 w-16 bg-slate-200 rounded-full animate-pulse"></div>
         </td>
         <td className="px-2 pr-4 text-right">
-          <div className="h-9 w-24 bg-slate-200 rounded-lg ml-auto"></div>
+          <div className="h-9 w-24 bg-slate-200 rounded-lg ml-auto animate-pulse"></div>
         </td>
       </tr>
     ))}
-  </div>
+  </>
 );
 
 // Stat Card Component

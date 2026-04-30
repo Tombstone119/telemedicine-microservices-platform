@@ -27,6 +27,7 @@ const navigation: Record<UserRole, { label: string; to: string }[]> = {
     { label: 'Doctors', to: '/admin/doctors' },
     { label: 'Patients', to: '/admin/patients' },
     { label: 'Doctor Verification', to: '/admin/doctor-verification' },
+    { label: 'Payments & Income', to: '/admin/payments' },
   ],
 };
 

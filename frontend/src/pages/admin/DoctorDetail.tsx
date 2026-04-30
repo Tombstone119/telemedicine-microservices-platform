@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import {
   ArrowLeft,
   Calendar,
-  Clock,
+  Clock as ClockIcon,
   DollarSign,
   Mail,
   Phone,
@@ -36,6 +36,10 @@ interface Doctor {
   bio?: string;
   available?: boolean;
   approval_status: 'pending' | 'approved' | 'rejected';
+  verification_documents?: Array<{ id?: number; name?: string; url?: string } | string>;
+  verification_notes?: string | null;
+  reviewed_at?: string | null;
+  reviewed_by?: number | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -130,16 +134,21 @@ export default function DoctorDetail() {
   const [activeTab, setActiveTab] = useState<'overview' | 'appointments' | 'availability' | 'activities'>('overview');
   const [actionLoading, setActionLoading] = useState(false);
 
+  const normalizeTime = (value?: string | null) => {
+    if (!value) return null;
+    return value.replace(/^([0-9]{2}):([0-9]{2})(?::[0-9]{2})?$/, '$1:$2');
+  };
+
   useEffect(() => {
     const loadData = async () => {
       try {
         setLoading(true);
         const [doctorRes, appointmentsRes, availabilityRes, activitiesRes, earningsRes] = await Promise.all([
-          api.get(`/admin/doctors/${id}`),
-          api.get(`/admin/doctors/${id}/appointments`).catch(() => ({ data: { items: [] } })),
-          api.get(`/admin/doctors/${id}/availability`).catch(() => ({ data: { items: [] } })),
-          api.get(`/admin/doctors/${id}/activities`).catch(() => ({ data: { items: [] } })),
-          api.get(`/admin/doctors/${id}/earnings`).catch(() => ({
+          api.get(`/doctors/admin/${id}`),
+          api.get(`/doctors/admin/${id}/appointments`).catch(() => ({ data: { items: [] } })),
+          api.get(`/doctors/admin/${id}/availability`).catch(() => ({ data: { items: [] } })),
+          api.get(`/doctors/admin/${id}/activities`).catch(() => ({ data: { items: [] } })),
+          api.get(`/doctors/admin/${id}/earnings`).catch(() => ({
             data: { total: 0, pending: 0, paid: 0, appointments: 0 },
           })),
         ]);
@@ -163,7 +172,7 @@ export default function DoctorDetail() {
     if (!doctor) return;
     try {
       setActionLoading(true);
-      await api.post(`/admin/doctors/${doctor.id}/suspend`);
+      await api.post(`/doctors/admin/${doctor.id}/suspend`);
       toast.success('Doctor suspended successfully');
       setDoctor({ ...doctor, available: false });
     } catch (error: any) {
@@ -177,7 +186,7 @@ export default function DoctorDetail() {
     if (!doctor) return;
     try {
       setActionLoading(true);
-      await api.post(`/admin/doctors/${doctor.id}/activate`);
+      await api.post(`/doctors/admin/${doctor.id}/activate`);
       toast.success('Doctor activated successfully');
       setDoctor({ ...doctor, available: true });
     } catch (error: any) {
@@ -191,7 +200,7 @@ export default function DoctorDetail() {
     if (!doctor) return;
     try {
       setActionLoading(true);
-      await api.patch(`/admin/doctors/${doctor.id}/verify`, { status: 'approved' });
+      await api.patch(`/doctors/admin/${doctor.id}/verification`, { status: 'approved' });
       toast.success('Doctor approved successfully');
       setDoctor({ ...doctor, approval_status: 'approved' });
     } catch (error: any) {
@@ -205,7 +214,7 @@ export default function DoctorDetail() {
     if (!doctor) return;
     try {
       setActionLoading(true);
-      await api.patch(`/admin/doctors/${doctor.id}/verify`, { status: 'rejected' });
+      await api.patch(`/doctors/admin/${doctor.id}/verification`, { status: 'rejected' });
       toast.success('Doctor rejected successfully');
       setDoctor({ ...doctor, approval_status: 'rejected' });
     } catch (error: any) {
@@ -251,6 +260,8 @@ export default function DoctorDetail() {
       </div>
     );
   }
+
+  const ratingNum = doctor.rating != null ? Number(doctor.rating) : null;
 
   return (
     <div className="space-y-6">
@@ -306,6 +317,46 @@ export default function DoctorDetail() {
         </div>
       </div>
 
+      {doctor.approval_status === 'pending' && (
+        <Card>
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-start gap-4">
+              <AlertCircle className="h-5 w-5 text-amber-600" />
+              <div>
+                <p className="font-semibold text-amber-800">In Verification Queue</p>
+                <p className="text-sm text-slate-600">Submitted: {doctor.created_at ? new Date(doctor.created_at).toLocaleString() : '—'}</p>
+                {doctor.verification_notes && (
+                  <p className="text-sm text-slate-600 mt-1">Notes: {doctor.verification_notes}</p>
+                )}
+
+                {doctor.verification_documents && doctor.verification_documents.length > 0 && (
+                  <div className="mt-2 flex gap-2 flex-wrap">
+                    {doctor.verification_documents.map((doc, i) => {
+                      if (!doc) return null;
+                      if (typeof doc === 'string') {
+                        return (
+                          <a key={i} href={doc} target="_blank" rel="noreferrer" className="text-sm text-[#107393] underline">
+                            Document {i + 1}
+                          </a>
+                        );
+                      }
+                      return (
+                        <a key={(doc as any).id || i} href={(doc as any).url || '#'} target="_blank" rel="noreferrer" className="text-sm text-[#107393] underline">
+                          {(doc as any).name || `Document ${i + 1}`}
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+            <div>
+              <StatusBadge status={"pending"} />
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Profile Card */}
       <Card>
         <div className="space-y-6">
@@ -318,19 +369,19 @@ export default function DoctorDetail() {
                 <div>
                   <h1 className="text-3xl font-bold text-black">{doctor.full_name || 'Dr. Unnamed'}</h1>
                   <p className="text-[#107393] font-semibold mt-1">{doctor.specialty || 'Specialty not set'}</p>
-                  {doctor.rating && (
+                  {ratingNum != null && (
                     <div className="flex items-center gap-1 mt-2">
                       {[...Array(5)].map((_, i) => (
                         <Star
                           key={i}
                           className={`h-4 w-4 ${
-                            i < Math.round(doctor.rating || 0)
+                            i < Math.round(ratingNum || 0)
                               ? 'fill-amber-400 text-amber-400'
                               : 'text-slate-300'
                           }`}
                         />
                       ))}
-                      <span className="text-sm text-slate-600 ml-2">({doctor.rating?.toFixed(1)})</span>
+                      <span className="text-sm text-slate-600 ml-2">({ratingNum !== null ? ratingNum.toFixed(1) : ''})</span>
                     </div>
                   )}
                 </div>
@@ -449,8 +500,8 @@ export default function DoctorDetail() {
                             {apt.date}
                           </span>
                           <span className="flex items-center gap-1">
-                            <Clock className="h-4 w-4" />
-                            {apt.time}
+                            <ClockIcon className="h-4 w-4" />
+                            {normalizeTime(apt.time) || apt.time}
                           </span>
                           <span className="flex items-center gap-1">
                             <DollarSign className="h-4 w-4" />

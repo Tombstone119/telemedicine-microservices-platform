@@ -19,6 +19,10 @@ async function initDB() {
     );
 
     await pool.query(
+      "ALTER TABLE appointments ADD COLUMN IF NOT EXISTS paid_at TIMESTAMPTZ"
+    );
+
+    await pool.query(
       `
         ALTER TABLE appointments
         ADD CONSTRAINT appointments_payment_status_check

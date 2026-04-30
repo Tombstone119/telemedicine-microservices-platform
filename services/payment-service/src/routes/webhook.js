@@ -34,7 +34,8 @@ router.post('/', async (req, res) => {
         const updateResult = await pool.query(
           `
             UPDATE appointments
-            SET payment_status = 'paid'
+            SET payment_status = 'paid',
+                paid_at = COALESCE(paid_at, NOW())
             WHERE id = $1
               AND payment_status <> 'paid'
             RETURNING id, patient_id, doctor_id, appointment_time, status, payment_status
