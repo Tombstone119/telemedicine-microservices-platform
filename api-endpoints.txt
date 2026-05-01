@@ -60,12 +60,19 @@ POST   /api/doctors/admin/:id/suspend
 POST   /api/doctors/admin/:id/activate
 GET    /api/doctors/profile
 PUT    /api/doctors/profile
+POST   /api/doctors/verification/documents
+POST   /api/doctors/verification/submit
 GET    /api/doctors/availability
 POST   /api/doctors/availability
 PUT    /api/doctors/availability
 GET    /api/doctors/appointments
 PUT    /api/doctors/appointments/:id/status
 POST   /api/doctors/prescriptions
+GET    /api/doctors/earnings
+GET    /api/doctors/earnings/receipt/:appointmentId
+GET    /api/doctors/wallet
+GET    /api/doctors/wallet/withdrawals
+POST   /api/doctors/wallet/withdraw
 
 ========================================
 notification-service
@@ -90,6 +97,9 @@ GET    /api/patients/prescriptions
 POST   /api/patients/prescriptions
 GET    /api/patients/all
 GET    /api/patients/:id
+GET    /api/patients/wallet
+GET    /api/patients/wallet/transactions
+GET    /api/patients/wallet/transactions/:transactionId
 
 ========================================
 payment-service

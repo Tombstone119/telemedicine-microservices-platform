@@ -35,7 +35,7 @@ interface Doctor {
   rating?: number;
   bio?: string;
   available?: boolean;
-  approval_status: 'pending' | 'approved' | 'rejected';
+  approval_status: 'pending' | 'pending_verification' | 'in_review' | 'approved' | 'rejected';
   verification_documents?: Array<{ id?: number; name?: string; url?: string } | string>;
   verification_notes?: string | null;
   reviewed_at?: string | null;
@@ -101,6 +101,8 @@ const TabButton = ({
 const StatusBadge = ({ status }: { status: string }) => {
   const colors = {
     pending: 'bg-amber-50 text-amber-700 border-amber-200',
+    pending_verification: 'bg-amber-50 text-amber-700 border-amber-200',
+    in_review: 'bg-amber-50 text-amber-700 border-amber-200',
     approved: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     rejected: 'bg-red-50 text-red-700 border-red-200',
     active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
@@ -317,7 +319,7 @@ export default function DoctorDetail() {
         </div>
       </div>
 
-      {doctor.approval_status === 'pending' && (
+      {['pending', 'pending_verification', 'in_review'].includes(doctor.approval_status) && (
         <Card>
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-start gap-4">

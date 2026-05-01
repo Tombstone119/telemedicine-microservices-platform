@@ -14,16 +14,16 @@ async function connectRabbit() {
   await channel.assertExchange(EXCHANGE, 'topic', { durable: true });
 
   connection.on('error', (error) => {
-    console.error('[PaymentService] RabbitMQ connection error:', error);
+    console.error('[PatientService] RabbitMQ connection error:', error);
   });
 
   connection.on('close', () => {
     connection = null;
     channel = null;
-    console.warn('[PaymentService] RabbitMQ connection closed');
+    console.warn('[PatientService] RabbitMQ connection closed');
   });
 
-  console.log('[PaymentService] RabbitMQ connected');
+  console.log('[PatientService] RabbitMQ connected');
   return channel;
 }
 
@@ -39,7 +39,7 @@ async function publishEvent(routingKey, payload) {
       timestamp: Date.now(),
     });
   } catch (error) {
-    console.error(`[PaymentService] Failed to publish event ${routingKey}:`, error);
+    console.error(`[PatientService] Failed to publish event ${routingKey}:`, error);
   }
 }
 
@@ -62,13 +62,13 @@ async function subscribeToEvents(routingKeys, callback) {
           await callback(msg.fields.routingKey, payload);
           channel.ack(msg);
         } catch (error) {
-          console.error('[PaymentService] Error processing message:', error);
+          console.error('[PatientService] Error processing message:', error);
           channel.nack(msg, false, true);
         }
       }
     });
   } catch (error) {
-    console.error('[PaymentService] Error subscribing to events:', error);
+    console.error('[PatientService] Error subscribing to events:', error);
   }
 }
 
@@ -78,14 +78,18 @@ async function closeRabbit() {
       await channel.close();
       channel = null;
     }
-
     if (connection) {
       await connection.close();
       connection = null;
     }
   } catch (error) {
-    console.error('[PaymentService] Failed to close RabbitMQ:', error);
+    console.error('[PatientService] Error closing RabbitMQ:', error);
   }
 }
 
-module.exports = { connectRabbit, publishEvent, subscribeToEvents, closeRabbit };
+module.exports = {
+  connectRabbit,
+  publishEvent,
+  subscribeToEvents,
+  closeRabbit,
+};

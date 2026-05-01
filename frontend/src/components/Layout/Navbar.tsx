@@ -20,6 +20,8 @@ const navigation: Record<UserRole, { label: string; to: string }[]> = {
     { label: 'Verification', to: '/doctor/verification' },
     { label: 'Appointments', to: '/doctor/appointments' },
     { label: 'Availability', to: '/doctor/availability' },
+    { label: 'Earnings', to: '/doctor/earnings' },
+    { label: 'Wallet', to: '/doctor/wallet' },
   ],
   admin: [
     { label: 'Dashboard', to: '/admin' },

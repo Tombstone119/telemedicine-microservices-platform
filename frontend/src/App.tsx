@@ -34,6 +34,8 @@ import DoctorAppointments from './pages/doctor/Appointments';
 import DoctorAvailability from './pages/doctor/Availability';
 import DoctorProfile from './pages/doctor/Profile';
 import DoctorVerification from './pages/doctor/Verification';
+import DoctorEarningsView from './pages/doctor/EarningsView';
+import DoctorWalletView from './pages/doctor/WalletView';
 import DoctorApplication from './pages/DoctorApplication';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/AdminUsers';
@@ -479,6 +481,8 @@ export default function App() {
                 <Route index element={<DoctorDashboard />} />
                 <Route path="appointments" element={<DoctorAppointments />} />
                 <Route path="availability" element={<DoctorAvailability />} />
+                <Route path="earnings" element={<DoctorEarningsView />} />
+                <Route path="wallet" element={<DoctorWalletView />} />
                 <Route path="profile" element={<DoctorProfile />} />
               </Route>
             </Route>

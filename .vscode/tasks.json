@@ -30,6 +30,21 @@
 			"isBackground": false,
 			"problemMatcher": [],
 			"group": "build"
+		},
+		{
+			"label": "rebuild-doctor-service",
+			"type": "shell",
+			"command": "docker",
+			"args": [
+				"compose",
+				"up",
+				"-d",
+				"--build",
+				"doctor-service"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
 		}
 	]
 }

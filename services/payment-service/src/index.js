@@ -4,6 +4,7 @@ const cors = require('cors');
 const express = require('express');
 const { initDB } = require('./db');
 const { connectRabbit, closeRabbit } = require('./rabbitmq');
+const { initializeEventListeners } = require('./eventListeners');
 const paymentsRouter = require('./routes/payments');
 const webhookRouter = require('./routes/webhook');
 
@@ -35,6 +36,7 @@ async function startServer() {
   try {
     await initDB();
     await connectRabbit();
+    await initializeEventListeners();
 
     app.listen(PORT, () => {
       console.log(`Payment service running on port ${PORT}`);
