@@ -483,12 +483,25 @@ router.put('/:id/confirm', verifyToken, requireRole('doctor'), async (req, res) 
       return res.status(404).json({ error: 'Pending appointment not found' });
     }
 
+    const emailsResult = await pool.query(
+      `SELECT p.email AS patient_email, u.email AS doctor_email
+       FROM appointments a
+       JOIN patients p ON p.user_id = a.patient_id
+       JOIN doctors d ON d.id = a.doctor_id
+       JOIN users u ON u.id = d.user_id
+       WHERE a.id = $1`,
+      [result.rows[0].id]
+    );
+    const { patient_email, doctor_email } = emailsResult.rows[0] || {};
+
     await publishEvent('appointment.confirmed', {
       appointment_id: result.rows[0].id,
       patient_id: result.rows[0].patient_id,
       doctor_id: result.rows[0].doctor_id,
       appointment_time: result.rows[0].appointment_time,
       status: result.rows[0].status,
+      patient_email,
+      doctor_email,
     });
 
     return res.json(result.rows[0]);
@@ -539,12 +552,25 @@ router.put('/:id/cancel', verifyToken, requireRole('patient', 'doctor'), async (
       return res.status(409).json({ error: 'Appointment already cancelled' });
     }
 
+    const emailsResult = await pool.query(
+      `SELECT p.email AS patient_email, u.email AS doctor_email
+       FROM appointments a
+       JOIN patients p ON p.user_id = a.patient_id
+       JOIN doctors d ON d.id = a.doctor_id
+       JOIN users u ON u.id = d.user_id
+       WHERE a.id = $1`,
+      [result.rows[0].id]
+    );
+    const { patient_email, doctor_email } = emailsResult.rows[0] || {};
+
     await publishEvent('appointment.cancelled', {
       appointment_id: result.rows[0].id,
       patient_id: result.rows[0].patient_id,
       doctor_id: result.rows[0].doctor_id,
       appointment_time: result.rows[0].appointment_time,
       status: result.rows[0].status,
+      patient_email,
+      doctor_email,
     });
 
     return res.json(result.rows[0]);
@@ -582,12 +608,25 @@ router.put('/:id/complete', verifyToken, requireRole('doctor'), async (req, res)
       return res.status(404).json({ error: 'Appointment not found or cannot be completed' });
     }
 
+    const emailsResult = await pool.query(
+      `SELECT p.email AS patient_email, u.email AS doctor_email
+       FROM appointments a
+       JOIN patients p ON p.user_id = a.patient_id
+       JOIN doctors d ON d.id = a.doctor_id
+       JOIN users u ON u.id = d.user_id
+       WHERE a.id = $1`,
+      [result.rows[0].id]
+    );
+    const { patient_email, doctor_email } = emailsResult.rows[0] || {};
+
     await publishEvent('appointment.completed', {
       appointment_id: result.rows[0].id,
       patient_id: result.rows[0].patient_id,
       doctor_id: result.rows[0].doctor_id,
       appointment_time: result.rows[0].appointment_time,
       status: result.rows[0].status,
+      patient_email,
+      doctor_email,
     });
 
     return res.json(result.rows[0]);

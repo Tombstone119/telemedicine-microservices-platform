@@ -1,6 +1,7 @@
 const router = require('express').Router();
 const { verifyToken, requireRole } = require('../../../../shared/middleware/auth');
 const { pool } = require('../db');
+const { publishEvent } = require('../rabbitmq');
 
 const validStatuses = new Set(['pending', 'pending_verification', 'in_review', 'approved', 'rejected']);
 const defaultQueueStatuses = ['pending', 'pending_verification', 'in_review'];
@@ -325,7 +326,27 @@ router.patch('/admin/:id/verification', verifyToken, requireRole('admin'), async
       return res.status(404).json({ error: 'Doctor not found' });
     }
 
-    return res.json(result.rows[0]);
+    const updatedDoctor = result.rows[0];
+    const userResult = await pool.query('SELECT email FROM users WHERE id = $1', [updatedDoctor.user_id]);
+    const email = userResult.rows[0]?.email;
+
+    if (status === 'approved') {
+      await publishEvent('doctor.verification_approved', {
+        doctor_id: updatedDoctor.id,
+        user_id: updatedDoctor.user_id,
+        email: email,
+        notes: updatedDoctor.verification_notes,
+      });
+    } else if (status === 'rejected') {
+      await publishEvent('doctor.verification_rejected', {
+        doctor_id: updatedDoctor.id,
+        user_id: updatedDoctor.user_id,
+        email: email,
+        notes: updatedDoctor.verification_notes,
+      });
+    }
+
+    return res.json(updatedDoctor);
   } catch (error) {
     console.error('[DoctorService] PATCH /admin/:id/verification error:', error);
     return res.status(500).json({ error: 'Server error' });

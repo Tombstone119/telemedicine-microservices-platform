@@ -3,6 +3,7 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { Pool } = require('pg');
+const { publishEvent } = require('./rabbitmq');
 require('dotenv').config();
 
 const app = express();
@@ -215,6 +216,14 @@ app.post('/api/auth/register', async (req, res) => {
       JWT_SECRET,
       { expiresIn: JWT_EXPIRES_IN }
     );
+
+    // Publish registration event
+    await publishEvent('user.registered', {
+      user_id: user.id,
+      email: user.email,
+      role: user.role,
+      full_name: defaultName,
+    });
 
     res.status(201).json({
       message: 'registration successful',

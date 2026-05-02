@@ -33,7 +33,7 @@ async function initDB() {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS medical_history (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-        patient_id UUID NOT NULL REFERENCES patients(id) ON DELETE CASCADE,
+        patient_id UUID NOT NULL UNIQUE REFERENCES patients(id) ON DELETE CASCADE,
         allergies TEXT[] DEFAULT '{}',
         conditions TEXT[] DEFAULT '{}',
         medications TEXT[] DEFAULT '{}',
@@ -41,6 +41,8 @@ async function initDB() {
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
     `);
+
+    await pool.query('CREATE UNIQUE INDEX IF NOT EXISTS medical_history_patient_id_key ON medical_history(patient_id);');
 
     await pool.query(`
       CREATE TABLE IF NOT EXISTS medical_reports (

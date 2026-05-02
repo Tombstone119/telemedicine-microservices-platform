@@ -23,7 +23,7 @@ export default function Register() {
     if (!form.full_name.trim()) nextErrors.full_name = 'Full name is required';
     if (!form.email.trim()) nextErrors.email = 'Email is required';
     else if (!/^\S+@\S+\.\S+$/.test(form.email)) nextErrors.email = 'Enter a valid email';
-    if (!form.password || form.password.length < 6) nextErrors.password = 'Minimum 6 characters';
+    if (!form.password || form.password.length < 8) nextErrors.password = 'Minimum 8 characters';
     setErrors(nextErrors);
     return Object.keys(nextErrors).length === 0;
   };
@@ -66,7 +66,7 @@ export default function Register() {
 
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Password</label>
-            <input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition-all duration-200 focus:border-[#107393] focus:ring-2 focus:ring-[#107393]/20" type="password" placeholder="Minimum 6 characters" />
+            <input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} className="w-full rounded-xl border border-slate-200 px-4 py-3 outline-none transition-all duration-200 focus:border-[#107393] focus:ring-2 focus:ring-[#107393]/20" type="password" placeholder="Minimum 8 characters" />
             {errors.password && <p className="mt-1 text-sm text-red-600">{errors.password}</p>}
           </div>
 
