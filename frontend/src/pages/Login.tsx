@@ -54,12 +54,6 @@ export default function Login() {
           <h1 className="text-3xl font-bold tracking-tight text-black">Welcome back</h1>
           <p className="mt-2 text-sm text-slate-600">Sign in to continue to your dashboard.</p>
         </div>
-
-        <div className="mb-6 rounded-2xl border border-[#107393]/15 bg-[#107393]/5 p-4 text-sm text-slate-700">
-          <div className="font-semibold text-[#107393]">Demo credentials</div>
-          <div className="mt-1">Use your backend test account or any valid registered user.</div>
-        </div>
-
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-700">Email</label>

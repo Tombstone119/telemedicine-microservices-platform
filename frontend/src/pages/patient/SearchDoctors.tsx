@@ -9,8 +9,20 @@ import {
   StarIcon,
   XMarkIcon,
   ArrowPathIcon,
+  CheckCircleIcon,
+  CalendarIcon,
+  ClockIcon,
+  CreditCardIcon,
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarSolidIcon } from '@heroicons/react/24/solid';
+
+type BookingConfirmation = {
+  appointmentId: string | number;
+  doctor: Doctor;
+  appointmentTime: string;
+  selectedSlot: string;
+  fee: number;
+};
 
 type Doctor = {
   id: string | number;
@@ -159,27 +171,24 @@ export default function SearchDoctors() {
   const [selectedDate, setSelectedDate] = useState('');
   const [selectedSlot, setSelectedSlot] = useState('');
   const [booking, setBooking] = useState(false);
+  const [bookingConfirmation, setBookingConfirmation] = useState<BookingConfirmation | null>(null);
 
   // Fetch all doctors on load (no filters applied)
   const fetchDoctors = useCallback(async () => {
     try {
       setLoading(true);
-      const { data } = await api.get('/appointments/doctors');
+      const { data } = await api.get('/appointments/doctors', {
+        params: {
+          available: true,
+          limit: 200,
+        },
+      });
       const doctorList = unwrapDoctors(data);
       setDoctors(doctorList);
     } catch (error: any) {
       console.error('Fetch error:', error);
-      // Mock data for demo if API fails
-      const mockDoctors: Doctor[] = [
-        { id: 1, full_name: 'Dr. Sarah Chen', specialty: 'Cardiology', qualification: 'MD, FACC', consultation_fee: 3500, rating: 4.8, reviews_count: 124, experience: 15, available: true, next_available: new Date(Date.now() + 86400000).toISOString(), bio: 'Expert cardiologist with 15+ years experience' },
-        { id: 2, full_name: 'Dr. Michael Lee', specialty: 'General Medicine', qualification: 'MBBS, MD', consultation_fee: 2500, rating: 4.9, reviews_count: 87, experience: 8, available: true, next_available: new Date(Date.now() + 172800000).toISOString(), bio: 'Compassionate primary care physician' },
-        { id: 3, full_name: 'Dr. Priya Patel', specialty: 'Dermatology', qualification: 'MD, DDVL', consultation_fee: 4000, rating: 4.7, reviews_count: 56, experience: 12, available: true, next_available: new Date(Date.now() + 259200000).toISOString(), bio: 'Skin care specialist' },
-        { id: 4, full_name: 'Dr. John Doe', specialty: 'Neurology', qualification: 'MD, DM', consultation_fee: 4500, rating: 4.6, reviews_count: 234, experience: 20, available: false, next_available: new Date(Date.now() + 432000000).toISOString(), bio: 'Neurology expert' },
-        { id: 5, full_name: 'Dr. Jane Smith', specialty: 'Pediatrics', qualification: 'MD, DCH', consultation_fee: 3000, rating: 4.9, reviews_count: 312, experience: 10, available: true, next_available: new Date(Date.now() + 86400000).toISOString(), bio: 'Child specialist' },
-        { id: 6, full_name: 'Dr. Ali Raza', specialty: 'Orthopedics', qualification: 'MS Ortho', consultation_fee: 3800, rating: 4.5, reviews_count: 78, experience: 14, available: true, next_available: new Date(Date.now() + 172800000).toISOString(), bio: 'Bone and joint specialist' },
-      ];
-      setDoctors(mockDoctors);
-      toast.error('Using demo data. API may not be available.');
+      setDoctors([]);
+      toast.error(error?.response?.data?.message || 'Unable to load doctors');
     } finally {
       setLoading(false);
     }
@@ -187,6 +196,25 @@ export default function SearchDoctors() {
 
   useEffect(() => {
     fetchDoctors();
+    
+    // Handle Stripe redirect after payment
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session_id');
+    if (sessionId) {
+      const savedBooking = sessionStorage.getItem('pendingBooking');
+      if (savedBooking) {
+        try {
+          const booking = JSON.parse(savedBooking);
+          setBookingConfirmation(booking);
+          // Clean up
+          sessionStorage.removeItem('pendingBooking');
+          // Remove query params from URL
+          window.history.replaceState({}, document.title, window.location.pathname);
+        } catch (error) {
+          console.error('Failed to parse saved booking:', error);
+        }
+      }
+    }
   }, [fetchDoctors]);
 
   // Apply filters and sorting
@@ -280,12 +308,11 @@ export default function SearchDoctors() {
 
     const today = new Date();
     const dates: Date[] = [];
-    for (let offset = 0; offset < 21; offset += 1) {
+    // Show 7 consecutive days starting from today
+    for (let offset = 0; offset < 7; offset += 1) {
       const date = new Date(today);
       date.setDate(today.getDate() + offset);
-      if (availableDays.has(date.getDay())) {
-        dates.push(date);
-      }
+      dates.push(date);
     }
 
     return dates;
@@ -348,7 +375,17 @@ export default function SearchDoctors() {
       fetchDoctors(); // Refresh to update availability
 
       if (paymentSession?.checkout_url) {
-        toast.success('Redirecting to Stripe Checkout...');
+        // Save booking details to show after payment
+        const bookingData = {
+          appointmentId: appointment.id,
+          doctor: selectedDoctor,
+          appointmentTime,
+          selectedSlot,
+          fee: Number(selectedDoctor.consultation_fee ?? selectedDoctor.fee ?? 0),
+        };
+        sessionStorage.setItem('pendingBooking', JSON.stringify(bookingData));
+        
+        // Redirect to Stripe payment
         window.location.href = paymentSession.checkout_url;
         return;
       }
@@ -582,33 +619,50 @@ export default function SearchDoctors() {
 
             <div className="mt-4 space-y-4">
               <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">Select Available Date</label>
+                <label className="mb-3 block text-sm font-medium text-slate-700">Select a Date</label>
                 {availabilityLoading ? (
-                  <p className="text-sm text-slate-500">Loading available dates...</p>
+                  <p className="text-sm text-slate-500">Loading availability...</p>
                 ) : availableDates.length === 0 ? (
-                  <p className="text-sm text-slate-500">No published availability for this doctor yet.</p>
+                  <p className="text-sm text-slate-500">No availability for this doctor.</p>
                 ) : (
-                  <div className="grid gap-2 sm:grid-cols-2">
+                  <div className="grid gap-2 grid-cols-7">
                     {availableDates.map((date) => {
                       const dateKey = date.toISOString().slice(0, 10);
                       const isSelected = selectedDate === dateKey;
+                      const dayName = format(date, 'EEE');
+                      const dayNum = format(date, 'd');
+                      const isToday = dateKey === new Date().toISOString().slice(0, 10);
+                      
+                      // Check if this day has available slots
+                      const dayOfWeek = date.getDay();
+                      const hasAvailability = availabilityWindows.some(
+                        (window) => normalizeDayOfWeek(window.day_of_week) === dayOfWeek
+                      );
 
                       return (
                         <button
                           key={dateKey}
                           type="button"
                           onClick={() => {
-                            setSelectedDate(dateKey);
-                            setSelectedSlot('');
+                            if (hasAvailability) {
+                              setSelectedDate(dateKey);
+                              setSelectedSlot('');
+                            }
                           }}
+                          disabled={!hasAvailability}
                           className={[
-                            'rounded-xl border px-3 py-2 text-left text-sm transition-all',
+                            'rounded-lg border px-2 py-3 text-center transition-all text-xs sm:text-sm',
                             isSelected
-                              ? 'border-[#107393] bg-[#107393]/10 text-[#107393]'
-                              : 'border-slate-200 text-slate-700 hover:border-[#107393]/40',
+                              ? 'border-[#107393] bg-[#107393] text-white shadow-md'
+                              : hasAvailability
+                              ? isToday
+                                ? 'border-[#107393]/30 bg-[#107393]/5 text-slate-900 hover:border-[#107393] hover:bg-[#107393]/10 cursor-pointer'
+                                : 'border-slate-200 bg-white text-slate-700 hover:border-[#107393]/40 cursor-pointer'
+                              : 'border-slate-100 bg-slate-50 text-slate-400 cursor-not-allowed opacity-50',
                           ].join(' ')}
                         >
-                          {format(date, 'EEE, MMM d')}
+                          <div className="font-semibold">{dayName}</div>
+                          <div className="text-xs mt-1">{dayNum}</div>
                         </button>
                       );
                     })}
@@ -618,7 +672,7 @@ export default function SearchDoctors() {
 
               {selectedDate && (
                 <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700">Select Time Slot</label>
+                  <label className="mb-3 block text-sm font-medium text-slate-700">Select Time Slot</label>
                   {slotsForSelectedDate.length === 0 ? (
                     <p className="text-sm text-slate-500">No slots available for this date.</p>
                   ) : (
@@ -650,7 +704,11 @@ export default function SearchDoctors() {
 
               {selectedDate && selectedSlot && (
                 <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-slate-700">
-                  Selected appointment: {format(new Date(`${selectedDate}T${selectedSlot}:00`), 'PPPP')} at {format(new Date(`${selectedDate}T${selectedSlot}:00`), 'p')}
+                  <div className="font-medium text-slate-900">Appointment Summary:</div>
+                  <div className="mt-2 space-y-1 text-sm">
+                    <p>📅 {format(new Date(`${selectedDate}T${selectedSlot}:00`), 'PPPP')}</p>
+                    <p>🕐 {format(new Date(`${selectedDate}T${selectedSlot}:00`), 'p')}</p>
+                  </div>
                 </div>
               )}
 
@@ -662,6 +720,86 @@ export default function SearchDoctors() {
                   Proceed to Payment
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Booking Confirmation Modal */}
+      {bookingConfirmation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 px-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            {/* Success Header */}
+            <div className="text-center mb-6">
+              <div className="flex justify-center mb-4">
+                <CheckCircleIcon className="h-12 w-12 text-emerald-500" />
+              </div>
+              <h2 className="text-2xl font-bold text-black">Appointment Booked!</h2>
+              <p className="mt-1 text-sm text-slate-600">Your appointment has been successfully scheduled</p>
+            </div>
+
+            {/* Appointment Summary */}
+            <div className="space-y-4 mb-6 bg-slate-50 p-4 rounded-xl">
+              {/* Doctor */}
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Doctor</p>
+                <p className="text-lg font-bold text-black">{bookingConfirmation.doctor.full_name || bookingConfirmation.doctor.name}</p>
+                <p className="text-sm text-slate-600">{bookingConfirmation.doctor.specialty || 'Specialist'}</p>
+              </div>
+
+              {/* Date & Time */}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Date</p>
+                  <div className="flex items-center gap-2">
+                    <CalendarIcon className="h-4 w-4 text-[#107393]" />
+                    <p className="text-sm font-medium text-slate-900">
+                      {format(new Date(bookingConfirmation.appointmentTime), 'MMM d, yyyy')}
+                    </p>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Time</p>
+                  <div className="flex items-center gap-2">
+                    <ClockIcon className="h-4 w-4 text-[#107393]" />
+                    <p className="text-sm font-medium text-slate-900">{bookingConfirmation.selectedSlot}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fee */}
+              <div>
+                <p className="text-xs font-semibold text-slate-500 uppercase mb-2">Consultation Fee</p>
+                <div className="flex items-center gap-2">
+                  <CreditCardIcon className="h-4 w-4 text-[#107393]" />
+                  <p className="text-lg font-bold text-[#107393]">Rs. {bookingConfirmation.fee.toLocaleString()}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Status Message */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 mb-6">
+              <p className="text-sm text-emerald-900">
+                ✓ Your appointment is confirmed. You will receive a confirmation email shortly.
+              </p>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col gap-3">
+              <Button
+                fullWidth
+                onClick={() => {
+                  setBookingConfirmation(null);
+                  setSelectedDoctor(null);
+                  setSelectedDate('');
+                  setSelectedSlot('');
+                  sessionStorage.removeItem('checkoutUrl');
+                  // Optionally redirect to appointments page
+                  // window.location.href = '/patient/appointments';
+                }}
+              >
+                Close
+              </Button>
             </div>
           </div>
         </div>

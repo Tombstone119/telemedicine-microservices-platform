@@ -7,7 +7,11 @@ const ROUTING_KEYS = [
   'appointment.created',
   'appointment.confirmed',
   'appointment.cancelled',
+  'appointment.completed',
   'payment.completed',
+  'user.registered',
+  'doctor.verification_approved',
+  'doctor.verification_rejected',
 ];
 
 let connection;

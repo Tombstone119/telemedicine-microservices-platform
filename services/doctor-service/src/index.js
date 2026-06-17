@@ -8,6 +8,8 @@ const availabilityRouter = require('./routes/availability');
 const appointmentsRouter = require('./routes/appointments');
 const prescriptionsRouter = require('./routes/prescriptions');
 const adminRouter = require('./routes/admin');
+const earningsRouter = require('./routes/earnings');
+const walletRouter = require('./routes/wallet');
 
 const app = express();
 
@@ -27,6 +29,8 @@ app.use('/api/doctors', profileRouter);
 app.use('/api/doctors', availabilityRouter);
 app.use('/api/doctors', appointmentsRouter);
 app.use('/api/doctors', prescriptionsRouter);
+app.use('/api/doctors/earnings', earningsRouter);
+app.use('/api/doctors/wallet', walletRouter);
 
 app.use((err, req, res, next) => {
   return res.status(500).json({ error: err.message || 'Server error' });

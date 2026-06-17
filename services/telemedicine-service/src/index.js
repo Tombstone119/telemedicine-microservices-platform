@@ -14,6 +14,7 @@ app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
     service: 'telemedicine-service',
+    jitsi_base_url: process.env.MEETING_BASE_URL || 'http://localhost:8000',
     timestamp: new Date().toISOString(),
   });
 });

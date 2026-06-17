@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import {
   ArrowRight,
@@ -33,11 +33,20 @@ import DoctorDashboard from './pages/doctor/Dashboard';
 import DoctorAppointments from './pages/doctor/Appointments';
 import DoctorAvailability from './pages/doctor/Availability';
 import DoctorProfile from './pages/doctor/Profile';
+import DoctorVerification from './pages/doctor/Verification';
+import DoctorEarningsView from './pages/doctor/EarningsView';
+import DoctorWalletView from './pages/doctor/WalletView';
 import DoctorApplication from './pages/DoctorApplication';
 import AdminDashboard from './pages/admin/Dashboard';
 import AdminUsers from './pages/admin/AdminUsers';
-import AdminDoctors from './pages/admin/Doctors';
+import AdminDoctorsPage from './pages/admin/AdminDoctors';
+import AdminDoctorDetail from './pages/admin/DoctorDetail';
+import AdminPatientsPage from './pages/admin/Patients';
+import AdminPatientDetail from './pages/admin/PatientDetail';
+import AdminPayments from './pages/admin/Payments';
 import AdminProfile from './pages/admin/Profile';
+import AdminDoctorVerification from './pages/admin/DoctorVerification';
+import api from './services/api';
 
 const roleHome: Record<UserRole, string> = {
   patient: '/patient',
@@ -57,11 +66,67 @@ function ProtectedRoute({ allowedRoles }: { allowedRoles: UserRole[] }) {
   }
 
   if (!isAuthenticated || !user) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (!allowedRoles.includes(user.role)) {
     return <Navigate to={roleHome[user.role]} replace />;
+  }
+
+  return <Outlet />;
+}
+
+function DoctorApprovalRoute() {
+  const { user } = useAuth();
+  const [checking, setChecking] = useState(true);
+  const [approved, setApproved] = useState(false);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function verifyDoctorApproval() {
+      if (!user || user.role !== 'doctor') {
+        if (mounted) {
+          setApproved(false);
+          setChecking(false);
+        }
+        return;
+      }
+
+      try {
+        const { data } = await api.get('/doctors/profile');
+        const payload = (data?.data || data || {}) as { approval_status?: string };
+        if (mounted) {
+          setApproved(payload.approval_status === 'approved');
+        }
+      } catch {
+        if (mounted) {
+          setApproved(false);
+        }
+      } finally {
+        if (mounted) {
+          setChecking(false);
+        }
+      }
+    }
+
+    verifyDoctorApproval();
+
+    return () => {
+      mounted = false;
+    };
+  }, [user]);
+
+  if (checking) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-white">
+        <div className="h-12 w-12 animate-spin rounded-full border-4 border-[#107393] border-t-transparent" />
+      </div>
+    );
+  }
+
+  if (!approved) {
+    return <Navigate to="/doctor/verification" replace />;
   }
 
   return <Outlet />;
@@ -411,10 +476,15 @@ export default function App() {
 
           <Route element={<ProtectedRoute allowedRoles={['doctor']} />}>
             <Route path="/doctor" element={<Layout />}>
-              <Route index element={<DoctorDashboard />} />
-              <Route path="appointments" element={<DoctorAppointments />} />
-              <Route path="availability" element={<DoctorAvailability />} />
-              <Route path="profile" element={<DoctorProfile />} />
+              <Route path="verification" element={<DoctorVerification />} />
+              <Route element={<DoctorApprovalRoute />}>
+                <Route index element={<DoctorDashboard />} />
+                <Route path="appointments" element={<DoctorAppointments />} />
+                <Route path="availability" element={<DoctorAvailability />} />
+                <Route path="earnings" element={<DoctorEarningsView />} />
+                <Route path="wallet" element={<DoctorWalletView />} />
+                <Route path="profile" element={<DoctorProfile />} />
+              </Route>
             </Route>
           </Route>
 
@@ -422,7 +492,12 @@ export default function App() {
             <Route path="/admin" element={<Layout />}>
               <Route index element={<AdminDashboard />} />
               <Route path="users" element={<AdminUsers />} />
-              <Route path="doctors" element={<AdminDoctors />} />
+              <Route path="doctors" element={<AdminDoctorsPage />} />
+              <Route path="doctors/:id" element={<AdminDoctorDetail />} />
+              <Route path="patients" element={<AdminPatientsPage />} />
+              <Route path="patients/:id" element={<AdminPatientDetail />} />
+              <Route path="payments" element={<AdminPayments />} />
+              <Route path="doctor-verification" element={<AdminDoctorVerification />} />
               <Route path="profile" element={<AdminProfile />} />
             </Route>
           </Route>

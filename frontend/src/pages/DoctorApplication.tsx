@@ -53,7 +53,7 @@ export default function DoctorApplication() {
     if (!form.full_name.trim()) nextErrors.full_name = 'Full name is required';
     if (!form.email.trim()) nextErrors.email = 'Email is required';
     else if (!/^\S+@\S+\.\S+$/.test(form.email)) nextErrors.email = 'Enter a valid email';
-    if (!form.password || form.password.length < 6) nextErrors.password = 'Minimum 6 characters';
+    if (!form.password || form.password.length < 8) nextErrors.password = 'Minimum 8 characters';
     if (!form.phone.trim()) nextErrors.phone = 'Phone number is required';
     if (!form.specialty.trim()) nextErrors.specialty = 'Specialty is required';
     if (!form.qualification.trim()) nextErrors.qualification = 'Qualification is required';
@@ -73,16 +73,40 @@ export default function DoctorApplication() {
     try {
       setSubmitting(true);
 
-      const { data: registration } = await api.post('/auth/register', {
-        full_name: form.full_name,
-        email: form.email,
-        password: form.password,
-        role: 'doctor',
-      });
+      let token: string | undefined;
+      let role: string | undefined;
 
-      const token = registration?.token;
+      try {
+        const { data: registration } = await api.post('/auth/register', {
+          full_name: form.full_name,
+          email: form.email,
+          password: form.password,
+          role: 'doctor',
+        });
+
+        token = registration?.token;
+        role = registration?.user?.role;
+      } catch (registrationError: any) {
+        const registrationMessage = registrationError?.response?.data?.message || registrationError?.response?.data?.error || '';
+        if (!/user already exists/i.test(registrationMessage)) {
+          throw registrationError;
+        }
+
+        const { data: login } = await api.post('/auth/login', {
+          email: form.email,
+          password: form.password,
+        });
+
+        token = login?.token;
+        role = login?.user?.role;
+      }
+
       if (!token) {
         throw new Error('Doctor registration token was not returned');
+      }
+
+      if (role && role !== 'doctor') {
+        throw new Error('This email belongs to a non-doctor account. Use a new email to apply as a doctor.');
       }
 
       const doctorPayload = {
@@ -102,7 +126,7 @@ export default function DoctorApplication() {
       toast.success('Doctor application submitted for admin approval');
       navigate('/login', { replace: true });
     } catch (error: any) {
-      toast.error(error?.response?.data?.message || error?.response?.data?.error || 'Unable to submit doctor application');
+      toast.error(error?.response?.data?.message || error?.response?.data?.error || error?.message || 'Unable to submit doctor application');
     } finally {
       setSubmitting(false);
     }
@@ -145,7 +169,7 @@ export default function DoctorApplication() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Password" error={errors.password}>
-                <input value={form.password} onChange={(e) => updateField('password', e.target.value)} className={inputClass} placeholder="Minimum 6 characters" type="password" />
+                <input value={form.password} onChange={(e) => updateField('password', e.target.value)} className={inputClass} placeholder="Minimum 8 characters" type="password" />
               </Field>
               <Field label="Phone" error={errors.phone}>
                 <input value={form.phone} onChange={(e) => updateField('phone', e.target.value)} className={inputClass} placeholder="+94..." />

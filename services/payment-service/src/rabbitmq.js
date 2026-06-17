@@ -43,6 +43,35 @@ async function publishEvent(routingKey, payload) {
   }
 }
 
+async function subscribeToEvents(routingKeys, callback) {
+  try {
+    if (!channel) {
+      await connectRabbit();
+    }
+
+    const q = await channel.assertQueue('', { exclusive: true });
+
+    for (const key of routingKeys) {
+      await channel.bindQueue(q.queue, EXCHANGE, key);
+    }
+
+    channel.consume(q.queue, async (msg) => {
+      if (msg) {
+        try {
+          const payload = JSON.parse(msg.content.toString());
+          await callback(msg.fields.routingKey, payload);
+          channel.ack(msg);
+        } catch (error) {
+          console.error('[PaymentService] Error processing message:', error);
+          channel.nack(msg, false, true);
+        }
+      }
+    });
+  } catch (error) {
+    console.error('[PaymentService] Error subscribing to events:', error);
+  }
+}
+
 async function closeRabbit() {
   try {
     if (channel) {
@@ -59,4 +88,4 @@ async function closeRabbit() {
   }
 }
 
-module.exports = { connectRabbit, publishEvent, closeRabbit };
+module.exports = { connectRabbit, publishEvent, subscribeToEvents, closeRabbit };

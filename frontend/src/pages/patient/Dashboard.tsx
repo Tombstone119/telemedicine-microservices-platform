@@ -1,30 +1,90 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CalendarDays, FileText, Syringe } from 'lucide-react';
+import { format, parseISO } from 'date-fns';
+import toast from 'react-hot-toast';
 import { useAuth } from '../../context/AuthContext';
 import Card from '../../components/UI/Card';
 import Button from '../../components/UI/Button';
+import api from '../../services/api';
 
-const stats = [
-  { label: 'Upcoming Appointments', value: '03', icon: CalendarDays },
-  { label: 'Medical Reports', value: '12', icon: FileText },
-  { label: 'Prescriptions', value: '04', icon: Syringe },
-];
+type Appointment = {
+  id: string | number;
+  doctor_name?: string;
+  doctor?: { full_name?: string };
+  appointment_time?: string;
+  status?: string;
+  specialty?: string;
+};
 
-const appointments = [
-  { doctor: 'Dr. Nimal Perera', specialty: 'General Medicine', time: 'Today, 10:30 AM', status: 'Confirmed' },
-  { doctor: 'Dr. Ayesha Fernando', specialty: 'Dermatology', time: 'Tomorrow, 02:00 PM', status: 'Pending' },
-  { doctor: 'Dr. Kavinda Silva', specialty: 'Cardiology', time: 'Fri, 09:15 AM', status: 'Confirmed' },
-];
+function unwrapAppointments(payload: any): Appointment[] {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.data)) return payload.data;
+  if (Array.isArray(payload?.items)) return payload.items;
+  if (Array.isArray(payload?.results)) return payload.results;
+  return [];
+}
+
+function getStatusKey(status?: string) {
+  return (status || '').toLowerCase();
+}
 
 const statusStyles: Record<string, string> = {
-  Confirmed: 'bg-[#107393]/15 text-[#107393] border border-[#107393]/30',
-  Pending: 'bg-[#ff347d]/15 text-[#9d0063] border border-[#ff347d]/35',
+  confirmed: 'bg-[#107393]/15 text-[#107393] border border-[#107393]/30',
+  pending: 'bg-[#ff347d]/15 text-[#9d0063] border border-[#ff347d]/35',
+  completed: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+  cancelled: 'bg-slate-200 text-slate-700 border border-slate-300',
 };
 
 export default function PatientDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const loadAppointments = async () => {
+      try {
+        setLoading(true);
+        const { data } = await api.get('/appointments/patient');
+        setAppointments(unwrapAppointments(data));
+      } catch (error: any) {
+        toast.error(error?.response?.data?.message || 'Unable to load patient dashboard data');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadAppointments();
+  }, []);
+
+  const metrics = useMemo(() => {
+    const statusList = appointments.map((appointment) => getStatusKey(appointment.status));
+    const upcomingCount = statusList.filter((status) => ['pending', 'confirmed', 'upcoming'].includes(status)).length;
+    const completedCount = statusList.filter((status) => status === 'completed').length;
+
+    return {
+      upcomingCount,
+      totalCount: appointments.length,
+      completedCount,
+    };
+  }, [appointments]);
+
+  const recentAppointments = useMemo(() => {
+    return [...appointments]
+      .sort((a, b) => {
+        const aTime = a.appointment_time ? new Date(a.appointment_time).getTime() : 0;
+        const bTime = b.appointment_time ? new Date(b.appointment_time).getTime() : 0;
+        return bTime - aTime;
+      })
+      .slice(0, 3);
+  }, [appointments]);
+
+  const stats = [
+    { label: 'Upcoming Appointments', value: String(metrics.upcomingCount).padStart(2, '0'), icon: CalendarDays },
+    { label: 'Total Appointments', value: String(metrics.totalCount).padStart(2, '0'), icon: FileText },
+    { label: 'Completed Visits', value: String(metrics.completedCount).padStart(2, '0'), icon: Syringe },
+  ];
 
   return (
     <div className="space-y-6 rounded-3xl bg-[#ecf3f5] p-4 sm:p-6">
@@ -70,11 +130,11 @@ export default function PatientDashboard() {
 
         <Card className="border-[#39bee5]/20 bg-white">
           <h2 className="text-xl font-bold text-[#000000]">Health summary</h2>
-          <p className="mt-2 text-sm text-[#737373]">Mock data is shown here for the foundation stage. Connect live analytics next.</p>
+          <p className="mt-2 text-sm text-[#737373]">Your summary reflects current appointment activity from your account.</p>
           <div className="mt-4 space-y-3">
-            <div className="h-3 rounded-full bg-[#ecf3f5]"><div className="h-3 w-4/5 rounded-full bg-[#107393]" /></div>
-            <div className="h-3 rounded-full bg-[#ecf3f5]"><div className="h-3 w-3/5 rounded-full bg-[#39bee5]" /></div>
-            <div className="h-3 rounded-full bg-[#ecf3f5]"><div className="h-3 w-1/2 rounded-full bg-[#9d0063]" /></div>
+            <div className="h-3 rounded-full bg-[#ecf3f5]"><div className="h-3 rounded-full bg-[#107393]" style={{ width: `${metrics.totalCount === 0 ? 0 : Math.round((metrics.upcomingCount / metrics.totalCount) * 100)}%` }} /></div>
+            <div className="h-3 rounded-full bg-[#ecf3f5]"><div className="h-3 rounded-full bg-[#39bee5]" style={{ width: `${metrics.totalCount === 0 ? 0 : Math.round((metrics.completedCount / metrics.totalCount) * 100)}%` }} /></div>
+            <div className="h-3 rounded-full bg-[#ecf3f5]"><div className="h-3 rounded-full bg-[#9d0063]" style={{ width: `${metrics.totalCount === 0 ? 0 : Math.round(((metrics.totalCount - metrics.completedCount) / metrics.totalCount) * 100)}%` }} /></div>
           </div>
         </Card>
       </div>
@@ -82,21 +142,35 @@ export default function PatientDashboard() {
       <Card className="border-[#39bee5]/20 bg-white">
         <h2 className="text-xl font-bold text-[#000000]">Recent appointments</h2>
         <div className="mt-4 space-y-4">
-          {appointments.map((appointment) => (
-            <div
-              key={`${appointment.doctor}-${appointment.time}`}
-              className="flex flex-col gap-2 rounded-2xl border border-[#39bee5]/25 bg-[#ecf3f5]/60 p-4 sm:flex-row sm:items-center sm:justify-between"
-            >
-              <div>
-                <p className="font-semibold text-[#000000]">{appointment.doctor}</p>
-                <p className="text-sm text-[#737373]">{appointment.specialty}</p>
-              </div>
-              <div className="text-sm text-[#147190]">{appointment.time}</div>
-              <div className={`rounded-full px-3 py-1 text-sm font-semibold ${statusStyles[appointment.status] || statusStyles.Confirmed}`}>
-                {appointment.status}
-              </div>
-            </div>
-          ))}
+          {loading ? (
+            <div className="rounded-2xl border border-[#39bee5]/25 bg-[#ecf3f5]/60 p-4 text-sm text-[#147190]">Loading appointments...</div>
+          ) : recentAppointments.length === 0 ? (
+            <div className="rounded-2xl border border-[#39bee5]/25 bg-[#ecf3f5]/60 p-4 text-sm text-[#147190]">No recent appointments found.</div>
+          ) : (
+            recentAppointments.map((appointment) => {
+              const statusKey = getStatusKey(appointment.status);
+              const doctorName = appointment.doctor_name || appointment.doctor?.full_name || 'Doctor';
+              const appointmentTime = appointment.appointment_time
+                ? format(parseISO(appointment.appointment_time), 'PPpp')
+                : 'Date pending';
+
+              return (
+                <div
+                  key={`${appointment.id}`}
+                  className="flex flex-col gap-2 rounded-2xl border border-[#39bee5]/25 bg-[#ecf3f5]/60 p-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div>
+                    <p className="font-semibold text-[#000000]">{doctorName}</p>
+                    <p className="text-sm text-[#737373]">{appointment.specialty || 'General consultation'}</p>
+                  </div>
+                  <div className="text-sm text-[#147190]">{appointmentTime}</div>
+                  <div className={`rounded-full px-3 py-1 text-sm font-semibold ${statusStyles[statusKey] || statusStyles.pending}`}>
+                    {appointment.status || 'Pending'}
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
       </Card>
     </div>

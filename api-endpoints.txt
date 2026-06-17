@@ -1,0 +1,130 @@
+API Endpoints by Service
+Generated from: services/*/src (Express route declarations)
+Date: 2026-04-24
+
+========================================
+ai-symptom-service
+========================================
+GET    /health
+GET    /health/ready
+POST   /api/ai-symptom/chat/message
+POST   /api/ai-symptom/chat/stream
+POST   /api/ai-symptom/voice/transcribe
+POST   /api/ai-symptom/voice/synthesize
+POST   /api/ai-symptom/voice/session-token
+POST   /api/ai-symptom/voice/conversation
+POST   /api/ai-symptom/recommendations/specialty
+POST   /api/ai-symptom/recommendations/analyze
+
+========================================
+appointment-service
+========================================
+GET    /health
+GET    /api/appointments/doctors
+GET    /api/appointments/doctors/:doctorId/availability
+GET    /api/appointments/doctors/:doctorId
+POST   /api/appointments
+GET    /api/appointments/patient
+GET    /api/appointments/doctor
+GET    /api/appointments/:id
+PUT    /api/appointments/:id/confirm
+PUT    /api/appointments/:id/cancel
+PUT    /api/appointments/:id/complete
+POST   /api/appointments/webhook/payment
+
+========================================
+auth-service
+========================================
+GET    /health
+POST   /api/auth/register
+POST   /api/auth/login
+GET    /api/auth/verify
+GET    /api/auth/admin/users
+PATCH  /api/auth/admin/users/:id/role
+PATCH  /api/auth/admin/users/:id/status
+DELETE /api/auth/admin/users/:id
+
+========================================
+doctor-service
+========================================
+GET    /health
+GET    /api/doctors/admin
+GET    /api/doctors/admin/:id
+GET    /api/doctors/admin/:id/appointments
+GET    /api/doctors/admin/:id/availability
+GET    /api/doctors/admin/:id/earnings
+GET    /api/doctors/admin/:id/activities
+PATCH  /api/doctors/admin/:id/verification
+PATCH  /api/doctors/admin/:id/documents
+POST   /api/doctors/admin/:id/suspend
+POST   /api/doctors/admin/:id/activate
+GET    /api/doctors/profile
+PUT    /api/doctors/profile
+POST   /api/doctors/verification/documents
+POST   /api/doctors/verification/submit
+GET    /api/doctors/availability
+POST   /api/doctors/availability
+PUT    /api/doctors/availability
+GET    /api/doctors/appointments
+PUT    /api/doctors/appointments/:id/status
+POST   /api/doctors/prescriptions
+GET    /api/doctors/earnings
+GET    /api/doctors/earnings/receipt/:appointmentId
+GET    /api/doctors/wallet
+GET    /api/doctors/wallet/withdrawals
+POST   /api/doctors/wallet/withdraw
+
+========================================
+notification-service
+========================================
+GET    /health
+
+========================================
+patient-service
+========================================
+GET    /health
+GET    /uploads/*
+GET    /api/patients/profile
+POST   /api/patients/profile
+PUT    /api/patients/profile
+GET    /api/patients/medical-history
+PUT    /api/patients/medical-history
+GET    /api/patients/reports
+POST   /api/patients/reports
+DELETE /api/patients/reports/:id
+GET    /api/patients/:id/reports
+GET    /api/patients/prescriptions
+POST   /api/patients/prescriptions
+GET    /api/patients/all
+GET    /api/patients/:id
+GET    /api/patients/wallet
+GET    /api/patients/wallet/transactions
+GET    /api/patients/wallet/transactions/:transactionId
+
+========================================
+payment-service
+========================================
+GET    /health
+POST   /api/payments/webhook/stripe
+POST   /api/payments/create-intent
+POST   /api/payments/create-checkout-session
+
+========================================
+telemedicine-service
+========================================
+GET    /health
+GET    /api/telemedicine/appointments/:id
+POST   /api/telemedicine/appointments/:id/start
+POST   /api/telemedicine/appointments/:id/join
+POST   /api/telemedicine/appointments/:id/end
+GET    /api/telemedicine/my-sessions
+
+========================================
+tts-service
+========================================
+GET    /health
+POST   /v1/audio/speech
+
+Notes
+- Paths listed are direct service endpoints defined in source code.
+- Auth/role middleware requirements are not expanded here; see each route file for access rules.
